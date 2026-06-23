@@ -1,7 +1,8 @@
 const initial = window.RAINFALL_FREQUENCY_DATA || {};
-const API_BASE = ["127.0.0.1:8765", "localhost:8765"].includes(location.host)
+const IS_LOCAL_API_HOST = ["127.0.0.1:8765", "localhost:8765"].includes(location.host);
+const API_BASE = IS_LOCAL_API_HOST
   ? ""
-  : "";
+  : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || "").replace(/\/+$/, "");
 
 const DURATION_LABELS = {
   60: "1H",
@@ -1022,7 +1023,11 @@ async function fetchJson(url, options) {
 }
 
 function apiUrl(url) {
-  if (!API_BASE || !String(url).startsWith("/api/")) return url;
+  if (!String(url).startsWith("/api/")) return url;
+  if (IS_LOCAL_API_HOST) return url;
+  if (!API_BASE) {
+    throw new Error("공개 페이지 API 주소가 설정되어 있지 않습니다. 민감한 API 주소를 저장소에 올리지 않도록 비워 두었습니다.");
+  }
   return API_BASE + url;
 }
 
