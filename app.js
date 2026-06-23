@@ -14,6 +14,27 @@ const DURATION_LABELS = {
   2880: "48H"
 };
 const COLORS = ["#2563eb", "#0891b2", "#0f766e", "#7c3aed", "#eab308", "#f97316", "#dc2626", "#475569", "#9333ea", "#0ea5e9"];
+const RESULT_DOWNLOAD_COLUMNS = [
+  ["station_name", "관측소"],
+  ["station_id", "관측소 코드"],
+  ["design_station_code", "기준 지점코드"],
+  ["region", "지역/기준 코드"],
+  ["observation_source", "자료 제공 기관"],
+  ["duration_min", "지속시간(분)"],
+  ["duration_label", "지속시간"],
+  ["max_rainfall_mm", "최대강우량(mm)"],
+  ["intensity_mm_per_hr", "강우강도(mm/hr)"],
+  ["start_time", "발생 시작시각"],
+  ["end_time", "발생 종료시각"],
+  ["design_rainfall_mm", "기준 확률강우량(mm)"],
+  ["estimated_return_period_label", "재현기간"],
+  ["estimated_return_period_year", "재현기간(년)"],
+  ["frequency_band", "빈도구간"],
+  ["lower_return_period_year", "하한 재현기간(년)"],
+  ["lower_rainfall_mm", "하한 확률강우량(mm)"],
+  ["upper_return_period_year", "상한 재현기간(년)"],
+  ["upper_rainfall_mm", "상한 확률강우량(mm)"]
+];
 
 const state = {
   stations: [],
@@ -41,6 +62,7 @@ const els = {
   runButton: $("#runButton"),
   rawButton: $("#rawDownloadButton"),
   refreshButton: $("#refreshButton"),
+  downloadButtons: document.querySelectorAll("[data-download-format]"),
   status: $("#statusText"),
   progressWrap: $("#progressWrap"),
   progressFill: $("#progressFill"),
@@ -752,6 +774,200 @@ function renderTable() {
     }).join("");
 }
 
+function downloadAnalysisResults(format, event) {
+  event?.preventDefault();
+  if (!state.results.length) {
+    els.status.textContent = "다운로드할 분석 결과가 없습니다. 먼저 분석을 실행하세요.";
+    return;
+  }
+  const rows = downloadRows();
+  const table = [RESULT_DOWNLOAD_COLUMNS.map(([, label]) => label), ...rows];
+  const extension = format === "xlsx" ? "xlsx" : "csv";
+  const blob = extension === "xlsx" ? xlsxBlob(table) : csvBlob(table);
+  downloadBlob(blob, `${downloadFileStem()}.${extension}`);
+  els.status.textContent = `분석 결과 ${number(state.results.length, 0)}건을 ${extension.toUpperCase()}로 다운로드했습니다.`;
+}
+
+function downloadRows() {
+  return state.results
+    .slice()
+    .sort(compareResultTableRows)
+    .map((row) => RESULT_DOWNLOAD_COLUMNS.map(([key]) => downloadCellValue(row, key)));
+}
+
+function downloadCellValue(row, key) {
+  if (key === "design_station_code") return row.design_station_code || row.region || "";
+  if (key === "observation_source") return row.observation_source || row.source_provider || initial.source_provider || "기후부, 수자원공사, 기상청";
+  if (key === "duration_label") return row.duration_label || durationKorean(row.duration_min);
+  if (key === "design_rainfall_mm") return row.design_rainfall_mm ?? "";
+  return row[key] ?? "";
+}
+
+function csvBlob(table) {
+  const csv = "\uFEFF" + table.map((row) => row.map(csvCell).join(",")).join("\r\n");
+  return new Blob([csv], { type: "text/csv;charset=utf-8" });
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
+function xlsxBlob(table) {
+  const files = [
+    { name: "[Content_Types].xml", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name: "_rels/.rels", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: "xl/workbook.xml", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="analysis_result" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: "xl/_rels/workbook.xml.rels", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name: "xl/styles.xml", content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="1"><fill><patternFill patternType="none"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs></styleSheet>` },
+    { name: "xl/worksheets/sheet1.xml", content: worksheetXml(table) }
+  ];
+  return zipBlob(files, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+}
+
+function worksheetXml(table) {
+  const rows = table.map((row, rowIndex) => {
+    const cells = row.map((value, colIndex) => cellXml(`${columnLetter(colIndex + 1)}${rowIndex + 1}`, value)).join("");
+    return `<row r="${rowIndex + 1}">${cells}</row>`;
+  }).join("");
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows}</sheetData></worksheet>`;
+}
+
+function cellXml(ref, value) {
+  if (typeof value === "number" && Number.isFinite(value)) return `<c r="${ref}"><v>${value}</v></c>`;
+  return `<c r="${ref}" t="inlineStr"><is><t>${xmlEscape(value)}</t></is></c>`;
+}
+
+function columnLetter(index) {
+  let letters = "";
+  while (index > 0) {
+    const remainder = (index - 1) % 26;
+    letters = String.fromCharCode(65 + remainder) + letters;
+    index = Math.floor((index - 1) / 26);
+  }
+  return letters;
+}
+
+function xmlEscape(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
+function zipBlob(files, type) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+  const now = new Date();
+  const time = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const date = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+
+  for (const file of files) {
+    const nameBytes = encoder.encode(file.name);
+    const data = encoder.encode(file.content);
+    const crc = crc32(data);
+    const localHeader = new Uint8Array(30 + nameBytes.length);
+    const localView = new DataView(localHeader.buffer);
+    setUint32(localView, 0, 0x04034b50);
+    setUint16(localView, 4, 20);
+    setUint16(localView, 6, 0x0800);
+    setUint16(localView, 8, 0);
+    setUint16(localView, 10, time);
+    setUint16(localView, 12, date);
+    setUint32(localView, 14, crc);
+    setUint32(localView, 18, data.length);
+    setUint32(localView, 22, data.length);
+    setUint16(localView, 26, nameBytes.length);
+    localHeader.set(nameBytes, 30);
+    localParts.push(localHeader, data);
+
+    const centralHeader = new Uint8Array(46 + nameBytes.length);
+    const centralView = new DataView(centralHeader.buffer);
+    setUint32(centralView, 0, 0x02014b50);
+    setUint16(centralView, 4, 20);
+    setUint16(centralView, 6, 20);
+    setUint16(centralView, 8, 0x0800);
+    setUint16(centralView, 10, 0);
+    setUint16(centralView, 12, time);
+    setUint16(centralView, 14, date);
+    setUint32(centralView, 16, crc);
+    setUint32(centralView, 20, data.length);
+    setUint32(centralView, 24, data.length);
+    setUint16(centralView, 28, nameBytes.length);
+    setUint32(centralView, 42, offset);
+    centralHeader.set(nameBytes, 46);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + data.length;
+  }
+
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const endHeader = new Uint8Array(22);
+  const endView = new DataView(endHeader.buffer);
+  setUint32(endView, 0, 0x06054b50);
+  setUint16(endView, 8, files.length);
+  setUint16(endView, 10, files.length);
+  setUint32(endView, 12, centralSize);
+  setUint32(endView, 16, offset);
+  return new Blob([...localParts, ...centralParts, endHeader], { type });
+}
+
+function setUint16(view, offset, value) {
+  view.setUint16(offset, value, true);
+}
+
+function setUint32(view, offset, value) {
+  view.setUint32(offset, value >>> 0, true);
+}
+
+let crcTableCache = null;
+function crc32(bytes) {
+  const table = crcTableCache || (crcTableCache = makeCrcTable());
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc = (crc >>> 8) ^ table[(crc ^ byte) & 0xff];
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function makeCrcTable() {
+  return Array.from({ length: 256 }, (_, index) => {
+    let c = index;
+    for (let k = 0; k < 8; k += 1) {
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    return c >>> 0;
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadFileStem() {
+  const scope = isBasinMode() ? `basin_${els.basin.value || "all"}` : `station_${els.stationId.value || "result"}`;
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, "");
+  return `rainfall_frequency_${safeFilePart(scope)}_${stamp}`;
+}
+
+function safeFilePart(value) {
+  return String(value || "result")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, "_")
+    .slice(0, 80) || "result";
+}
+
 async function downloadRawCsv() {
   if (isBasinMode()) {
     els.status.textContent = "중권역 전체 원자료는 용량이 커서 결과 CSV/XLSX로 받도록 구성했습니다. 원자료 CSV는 개별 관측소 모드에서 받으세요.";
@@ -878,6 +1094,9 @@ document.querySelectorAll("[data-idf-mode]").forEach((button) => {
 
 els.runButton.addEventListener("click", runAnalysis);
 els.rawButton.addEventListener("click", downloadRawCsv);
+els.downloadButtons.forEach((link) => {
+  link.addEventListener("click", (event) => downloadAnalysisResults(link.dataset.downloadFormat || "csv", event));
+});
 els.refreshButton.addEventListener("click", async () => {
   els.status.textContent = "기준 지점과 관측소 목록을 다시 불러오는 중입니다.";
   await loadInitialData();

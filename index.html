@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=providerstation1">
+  <link rel="stylesheet" href="styles.css?v=downloadfix1">
 </head>
 <body>
   <div class="app-shell">
@@ -40,8 +40,8 @@
           <button class="icon-button" id="refreshButton" type="button" title="기준 지점 새로고침">
             <span class="material-symbols-outlined">refresh</span>
           </button>
-          <a class="pill-link" href="downloads/result.csv"><span class="material-symbols-outlined">download</span>CSV</a>
-          <a class="pill-link" href="downloads/result.xlsx"><span class="material-symbols-outlined">download</span>XLSX</a>
+          <a class="pill-link" href="#" data-download-format="csv"><span class="material-symbols-outlined">download</span>CSV</a>
+          <a class="pill-link" href="#" data-download-format="xlsx"><span class="material-symbols-outlined">download</span>XLSX</a>
         </div>
       </header>
 
@@ -176,8 +176,8 @@
             <h2>분석 결과</h2>
           </div>
           <div class="download-group">
-            <a class="pill-link light" href="downloads/result.csv">CSV</a>
-            <a class="pill-link light" href="downloads/result.xlsx">XLSX</a>
+            <a class="pill-link light" href="#" data-download-format="csv">CSV</a>
+            <a class="pill-link light" href="#" data-download-format="xlsx">XLSX</a>
           </div>
         </div>
         <div class="table-wrap">
@@ -206,6 +206,6 @@
   </div>
 
   <script>window.RAINFALL_FREQUENCY_DATA = {"region": "10014010", "source": "wamis", "station_id": "10014010", "station_name": "평창군(월정분교)", "start_time": "2026-06-01 00:00", "end_time": "2026-06-10 00:00", "durations_min": [60, 120, 180, 360, 540, 720, 1440, 2880], "db_source": "rain_2022.db.rain_2022", "source_provider": "기후부, 수자원공사, 기상청", "results": []};</script>
-  <script src="app.js?v=providerstation1"></script>
+  <script src="app.js?v=downloadfix1"></script>
 </body>
 </html>
