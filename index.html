@@ -1,843 +1,211 @@
 <!doctype html>
-<html lang="ko">
+<html class="light" lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Floodal | 확률강우량 공개 조회</title>
-  <meta name="description" content="지역빈도해석 확률강우량 기준표 공개 조회 도구">
-  <style>
-    :root {
-      --bg: #edf3f8;
-      --panel: #ffffff;
-      --panel-2: #f7fafc;
-      --ink: #162235;
-      --muted: #65768c;
-      --line: #d7e1ea;
-      --blue: #2563eb;
-      --cyan: #0e7490;
-      --green: #0f766e;
-      --yellow: #b7791f;
-      --red: #c2410c;
-      --nav: #10233e;
-      --shadow: 0 16px 40px rgba(25, 48, 73, 0.08);
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      min-width: 320px;
-      background: var(--bg);
-      color: var(--ink);
-      font-family: Inter, "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
-      letter-spacing: 0;
-    }
-
-    button, input, select {
-      font: inherit;
-      letter-spacing: 0;
-    }
-
-    button {
-      border: 0;
-      cursor: pointer;
-    }
-
-    button:disabled {
-      cursor: wait;
-      opacity: 0.65;
-    }
-
-    .shell {
-      display: grid;
-      grid-template-columns: 272px minmax(0, 1fr);
-      min-height: 100vh;
-    }
-
-    .side {
-      position: sticky;
-      top: 0;
-      height: 100vh;
-      padding: 22px 18px;
-      background: var(--nav);
-      color: #e6edf5;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding-bottom: 24px;
-    }
-
-    .brand-mark {
-      display: grid;
-      place-items: center;
-      width: 42px;
-      height: 42px;
-      border-radius: 8px;
-      background: #d8eef8;
-      color: #0e7490;
-      font-weight: 900;
-    }
-
-    .brand strong {
-      display: block;
-      font-size: 19px;
-    }
-
-    .brand span {
-      display: block;
-      margin-top: 2px;
-      color: #a9bacb;
-      font-size: 12px;
-    }
-
-    .source {
-      border-top: 1px solid rgba(255, 255, 255, 0.14);
-      padding: 16px 0;
-    }
-
-    .source span {
-      display: block;
-      color: #a9bacb;
-      font-size: 12px;
-      margin-bottom: 6px;
-    }
-
-    .source strong {
-      display: block;
-      font-size: 14px;
-      line-height: 1.4;
-    }
-
-    .main {
-      min-width: 0;
-      padding: 24px;
-    }
-
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    h1 {
-      margin: 0;
-      font-size: 28px;
-      line-height: 1.15;
-    }
-
-    .subtitle {
-      margin-top: 6px;
-      color: var(--muted);
-      font-size: 14px;
-    }
-
-    .toolbar {
-      display: grid;
-      grid-template-columns: minmax(180px, 1.5fr) minmax(150px, 0.8fr) minmax(150px, 0.8fr) auto;
-      gap: 10px;
-      align-items: end;
-      margin-bottom: 14px;
-      padding: 14px;
-      border: 1px solid var(--line);
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      border-radius: 8px;
-    }
-
-    label {
-      display: grid;
-      gap: 6px;
-      min-width: 0;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    input, select {
-      width: 100%;
-      min-width: 0;
-      height: 42px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      background: #fff;
-      color: var(--ink);
-      padding: 0 11px;
-      outline: none;
-    }
-
-    input:focus, select:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 7px;
-      height: 42px;
-      white-space: nowrap;
-      border-radius: 6px;
-      padding: 0 13px;
-      color: #fff;
-      background: var(--blue);
-      font-weight: 800;
-    }
-
-    .btn.secondary {
-      background: #35506e;
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin-bottom: 14px;
-    }
-
-    .metric {
-      min-width: 0;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      padding: 14px;
-    }
-
-    .metric span {
-      display: block;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .metric strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 22px;
-      line-height: 1.05;
-      word-break: keep-all;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: minmax(250px, 330px) minmax(0, 1fr);
-      gap: 14px;
-      align-items: start;
-    }
-
-    .panel {
-      min-width: 0;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: var(--panel);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-    }
-
-    .panel-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 14px;
-      border-bottom: 1px solid var(--line);
-      background: var(--panel-2);
-    }
-
-    .panel-head strong {
-      font-size: 15px;
-    }
-
-    .status {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .station-list {
-      max-height: calc(100vh - 270px);
-      min-height: 360px;
-      overflow: auto;
-    }
-
-    .station {
-      width: 100%;
-      display: grid;
-      gap: 4px;
-      text-align: left;
-      padding: 12px 14px;
-      border-bottom: 1px solid var(--line);
-      background: #fff;
-      color: var(--ink);
-    }
-
-    .station:hover,
-    .station.active {
-      background: #eef6ff;
-    }
-
-    .station strong {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-size: 14px;
-    }
-
-    .station small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .detail {
-      padding: 14px;
-      display: grid;
-      gap: 14px;
-    }
-
-    .station-title {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: baseline;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .station-title h2 {
-      margin: 0;
-      font-size: 22px;
-      line-height: 1.2;
-    }
-
-    .station-title code {
-      color: var(--cyan);
-      font-weight: 900;
-      font-size: 14px;
-    }
-
-    .chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    .chip {
-      border: 1px solid var(--line);
-      border-radius: 999px;
-      padding: 6px 10px;
-      background: #fff;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 800;
-    }
-
-    .chart {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(58px, 1fr));
-      align-items: end;
-      gap: 8px;
-      min-height: 230px;
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fbfdff;
-    }
-
-    .bar-wrap {
-      display: grid;
-      grid-template-rows: 1fr auto auto;
-      gap: 6px;
-      height: 205px;
-      min-width: 0;
-      text-align: center;
-    }
-
-    .bar-track {
-      display: flex;
-      align-items: end;
-      justify-content: center;
-      height: 150px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .bar {
-      width: min(100%, 34px);
-      min-height: 3px;
-      border-radius: 5px 5px 0 0;
-      background: linear-gradient(180deg, var(--blue), var(--cyan));
-    }
-
-    .bar-value {
-      color: var(--ink);
-      font-size: 12px;
-      font-weight: 800;
-      min-height: 15px;
-    }
-
-    .bar-label {
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 800;
-    }
-
-    .table-wrap {
-      width: 100%;
-      overflow: auto;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-    }
-
-    table {
-      width: 100%;
-      min-width: 780px;
-      border-collapse: collapse;
-      background: #fff;
-    }
-
-    th, td {
-      padding: 9px 10px;
-      border-bottom: 1px solid var(--line);
-      border-right: 1px solid var(--line);
-      text-align: right;
-      white-space: nowrap;
-      font-size: 13px;
-    }
-
-    th {
-      position: sticky;
-      top: 0;
-      z-index: 1;
-      background: #eaf2fb;
-      color: #36506d;
-      font-weight: 900;
-    }
-
-    th:first-child, td:first-child {
-      text-align: left;
-      font-weight: 900;
-    }
-
-    tr:last-child td {
-      border-bottom: 0;
-    }
-
-    .empty {
-      padding: 24px;
-      color: var(--muted);
-      text-align: center;
-      font-weight: 700;
-    }
-
-    @media (max-width: 980px) {
-      .shell { grid-template-columns: 1fr; }
-      .side {
-        position: static;
-        height: auto;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-      }
-      .brand { grid-column: 1 / -1; padding-bottom: 8px; }
-      .source { border-top: 1px solid rgba(255,255,255,0.14); padding: 10px 0 0; }
-      .toolbar { grid-template-columns: 1fr 1fr; }
-      .grid { grid-template-columns: 1fr; }
-      .station-list { max-height: 320px; min-height: 220px; }
-    }
-
-    @media (max-width: 680px) {
-      .main { padding: 14px; }
-      .topbar { align-items: stretch; flex-direction: column; }
-      .toolbar { grid-template-columns: 1fr; }
-      .metrics { grid-template-columns: 1fr 1fr; }
-      .side { grid-template-columns: 1fr; }
-      h1 { font-size: 23px; }
-      .metric strong { font-size: 19px; }
-    }
-  </style>
+  <title>HydroAnalyze | 지속시간별 확률강우량</title>
+  <meta name="description" content="HRFCO 10분 강우량 이동합과 PostgreSQL rain_2022 확률강우량 기준표를 연결한 빈도해석 대시보드">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="shell">
-    <aside class="side">
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="주 메뉴">
       <div class="brand">
-        <div class="brand-mark">F</div>
+        <span class="material-symbols-outlined brand-icon">water_drop</span>
         <div>
-          <strong>Floodal</strong>
+          <strong>HydroAnalyze</strong>
           <span>Rainfall Frequency</span>
         </div>
       </div>
-      <div class="source">
-        <span>공개 데이터</span>
-        <strong>지역빈도해석 확률강우량 2022</strong>
+      <div class="source-box">
+        <span>자료 제공 기관</span>
+        <strong>HRFCO 수문 OpenAPI</strong>
       </div>
-      <div class="source">
-        <span>공개 주소</span>
-        <strong>GitHub Pages</strong>
+      <div class="source-box">
+        <span>기준자료</span>
+        <strong>PostgreSQL rain_2022.db.rain_2022</strong>
       </div>
     </aside>
 
-    <main class="main">
-      <header class="topbar">
+    <main class="dashboard">
+      <header class="topbar fade-slide-up">
         <div>
-          <h1>확률강우량 공개 조회</h1>
-          <div class="subtitle">관측소별 지속시간과 재현기간 기준강우량</div>
+          <h1>지속시간별 확률강우량</h1>
         </div>
-        <button class="btn secondary" id="reloadButton" type="button">새로고침</button>
+        <div class="top-actions">
+          <button class="icon-button" id="refreshButton" type="button" title="기준 지점 새로고침">
+            <span class="material-symbols-outlined">refresh</span>
+          </button>
+          <a class="pill-link" href="downloads/result.csv"><span class="material-symbols-outlined">download</span>CSV</a>
+          <a class="pill-link" href="downloads/result.xlsx"><span class="material-symbols-outlined">download</span>XLSX</a>
+        </div>
       </header>
 
-      <section class="toolbar" aria-label="조회 조건">
-        <label>
-          검색
-          <input id="searchInput" type="search" placeholder="관측소명, 코드, 권역, 기관">
-        </label>
-        <label>
-          중권역
-          <select id="basinSelect"></select>
-        </label>
-        <label>
-          기관
-          <select id="agencySelect"></select>
-        </label>
-        <label>
-          지속시간
-          <select id="durationSelect"></select>
-        </label>
-      </section>
-
-      <section class="metrics" aria-label="요약">
-        <div class="metric"><span>관측소</span><strong id="stationCount">-</strong></div>
-        <div class="metric"><span>확률강우량 행</span><strong id="designCount">-</strong></div>
-        <div class="metric"><span>선택 지점 최대값</span><strong id="maxRainfall">-</strong></div>
-        <div class="metric"><span>표시 상태</span><strong id="loadStatus">로딩</strong></div>
-      </section>
-
-      <section class="grid">
-        <div class="panel">
-          <div class="panel-head">
-            <strong>관측소 목록</strong>
-            <span class="status" id="filteredCount">-</span>
-          </div>
-          <div class="station-list" id="stationList"></div>
+      <section class="control-panel fade-slide-up" aria-label="분석 조건">
+        <div class="control-row control-wide">
+          <label>
+            <span>분석 방식</span>
+            <select id="analysisModeSelect">
+              <option value="station">개별 관측소</option>
+              <option value="basin">중권역 전체</option>
+            </select>
+          </label>
+          <label>
+            <span>중권역 선택</span>
+            <select id="basinSelect"></select>
+          </label>
+          <label>
+            <span>유역&관측소 검색</span>
+            <input id="stationSearchInput" type="search" placeholder="관측소명, 코드, 유역, 기관">
+          </label>
         </div>
+        <div class="control-row control-wide">
+          <label>
+            <span>관측소 선택</span>
+            <select id="stationSelect"></select>
+          </label>
+          <label>
+            <span>기준 지점코드</span>
+            <select id="designStationSelect"></select>
+          </label>
+          <label>
+            <span>관측소 코드</span>
+            <input id="stationIdInput" type="text" inputmode="numeric">
+          </label>
+        </div>
+        <div class="control-row">
+          <label>
+            <span>시작시각</span>
+            <input id="startInput" type="datetime-local">
+          </label>
+          <label>
+            <span>종료시각</span>
+            <input id="endInput" type="datetime-local">
+          </label>
+        </div>
+        <div class="duration-panel">
+          <span>지속시간 선택</span>
+          <div id="durationButtons" class="duration-buttons"></div>
+        </div>
+        <div class="run-row">
+          <button id="runButton" class="primary-button" type="button">
+            <span class="material-symbols-outlined">play_arrow</span>
+            <span class="button-text">분석 실행</span>
+          </button>
+          <button id="rawDownloadButton" class="secondary-button" type="button">
+            <span class="material-symbols-outlined">database</span>
+            원자료 CSV
+          </button>
+          <p id="statusText" class="status-text">DB와 관측소 목록을 불러오는 중입니다.</p>
+        </div>
+        <div class="progress-wrap" id="progressWrap" hidden>
+          <div class="progress-track"><div id="progressFill" class="progress-fill"></div></div>
+          <span id="progressLabel">대기</span>
+        </div>
+      </section>
 
-        <div class="panel">
+      <section class="summary-grid" id="summaryGrid" aria-label="요약 카드">
+        <article class="stat-card fade-slide-up">
+          <span class="stat-label">최대 1시간 강우량</span>
+          <strong id="peak1hValue" data-count="0">-</strong>
+          <small>HRFCO 10분 rf 이동합</small>
+        </article>
+        <article class="stat-card fade-slide-up">
+          <span class="stat-label">총 누적 강우량</span>
+          <strong id="totalRainfallValue" data-count="0">-</strong>
+          <small>선택 기간 합계</small>
+        </article>
+        <article class="stat-card fade-slide-up" id="maxFrequencyCard">
+          <span class="stat-label">최대 감지 재현기간</span>
+          <strong id="maxFrequencyValue">-</strong>
+          <small>상한 기준 재현기간</small>
+        </article>
+        <article class="stat-card fade-slide-up">
+          <span class="stat-label">최대 강우 지속시간</span>
+          <strong id="peakDurationValue">-</strong>
+          <small>최대 이동합 발생 지속시간</small>
+        </article>
+        <article class="stat-card fade-slide-up">
+          <span class="stat-label">분석 기간</span>
+          <strong id="analysisPeriodValue">-</strong>
+          <small>시작시각 ~ 종료시각</small>
+        </article>
+        <article class="stat-card fade-slide-up">
+          <span class="stat-label">기준자료</span>
+          <strong id="dbSourceValue">rain_2022</strong>
+          <small id="dbVerifyValue">DB 검증 전</small>
+        </article>
+      </section>
+
+      <section class="visual-grid">
+        <article class="panel fade-slide-up">
           <div class="panel-head">
-            <strong>기준강우량</strong>
-            <button class="btn" id="downloadButton" type="button">CSV 다운로드</button>
-          </div>
-          <div class="detail">
             <div>
-              <div class="station-title">
-                <h2 id="stationName">관측소 선택 중</h2>
-                <code id="stationCode"></code>
-              </div>
-              <div class="chips" id="stationChips"></div>
+              <p class="panel-kicker">Moving Sum Maxima</p>
+              <h2>지속시간별 최대강우량</h2>
             </div>
-
-            <div class="chart" id="chart"></div>
-            <div class="table-wrap" id="tableWrap"></div>
           </div>
+          <div id="barChart" class="bar-chart skeleton"></div>
+        </article>
+
+        <article class="panel fade-slide-up" id="idfPanel">
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Design Rainfall</p>
+              <h2>IDF Curve</h2>
+            </div>
+            <div class="segmented" role="group" aria-label="IDF 표시 방식">
+              <button class="active" data-idf-mode="rainfall" type="button">누적강우량</button>
+              <button data-idf-mode="intensity" type="button">강우강도</button>
+            </div>
+          </div>
+          <div class="idf-wrap">
+            <svg id="idfChart" viewBox="0 0 760 360" role="img" aria-label="IDF Curve"></svg>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel fade-slide-up" id="resultPanel">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Analysis Table</p>
+            <h2>분석 결과</h2>
+          </div>
+          <div class="download-group">
+            <a class="pill-link light" href="downloads/result.csv">CSV</a>
+            <a class="pill-link light" href="downloads/result.xlsx">XLSX</a>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>관측소</th>
+                <th>관측소 코드</th>
+                <th>기준 지점코드</th>
+                <th>지속시간</th>
+                <th>최대강우량(mm)</th>
+                <th>강우강도(mm/hr)</th>
+                <th>발생 시작시각</th>
+                <th>발생 종료시각</th>
+                <th>강우량빈도 기준값(mm)</th>
+                <th>재현기간</th>
+              </tr>
+            </thead>
+            <tbody id="resultRows">
+              <tr><td colspan="10">분석을 실행하면 결과가 표시됩니다.</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </main>
   </div>
 
-  <script>
-    const PROJECT_URL = "https://";
-    const PUBLISHABLE_KEY = "";
-    const DURATIONS = [60, 120, 180, 360, 540, 720, 1440, 2880];
-    const DURATION_LABELS = {
-      60: "1시간",
-      120: "2시간",
-      180: "3시간",
-      360: "6시간",
-      540: "9시간",
-      720: "12시간",
-      1440: "24시간",
-      2880: "48시간"
-    };
-
-    const state = {
-      stations: [],
-      filteredStations: [],
-      selectedStation: null,
-      designRows: [],
-      selectedDuration: 60,
-    };
-
-    const els = {
-      search: document.querySelector("#searchInput"),
-      basin: document.querySelector("#basinSelect"),
-      agency: document.querySelector("#agencySelect"),
-      duration: document.querySelector("#durationSelect"),
-      reload: document.querySelector("#reloadButton"),
-      stationCount: document.querySelector("#stationCount"),
-      designCount: document.querySelector("#designCount"),
-      maxRainfall: document.querySelector("#maxRainfall"),
-      loadStatus: document.querySelector("#loadStatus"),
-      filteredCount: document.querySelector("#filteredCount"),
-      stationList: document.querySelector("#stationList"),
-      stationName: document.querySelector("#stationName"),
-      stationCode: document.querySelector("#stationCode"),
-      stationChips: document.querySelector("#stationChips"),
-      chart: document.querySelector("#chart"),
-      tableWrap: document.querySelector("#tableWrap"),
-      download: document.querySelector("#downloadButton"),
-    };
-
-    function headers(extra = {}) {
-      return {
-        apikey: PUBLISHABLE_KEY,
-        Authorization: "Bearer " + PUBLISHABLE_KEY,
-        ...extra
-      };
-    }
-
-    async function fromRest(path, options = {}) {
-      const response = await fetch(PROJECT_URL + path, {
-        ...options,
-        headers: headers(options.headers || {})
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || response.statusText);
-      }
-      if (options.method === "HEAD") return response;
-      return response.json();
-    }
-
-    async function countRows(table) {
-      const response = await fromRest("/rest/v1/" + table + "?select=*", {
-        method: "HEAD",
-        headers: { Prefer: "count=exact" }
-      });
-      const range = response.headers.get("content-range") || "";
-      const match = range.match(/\/(\d+)$/);
-      return match ? Number(match[1]) : 0;
-    }
-
-    function formatNumber(value, digits = 0) {
-      const numeric = Number(value);
-      if (!Number.isFinite(numeric)) return "-";
-      return new Intl.NumberFormat("ko-KR", { maximumFractionDigits: digits }).format(numeric);
-    }
-
-    function normalize(text) {
-      return String(text || "").toLowerCase().replace(/\s+/g, "");
-    }
-
-    function uniqueSorted(rows, key) {
-      return [...new Set(rows.map((row) => row[key]).filter(Boolean))]
-        .sort((a, b) => String(a).localeCompare(String(b), "ko"));
-    }
-
-    function setOptions(select, values, allLabel) {
-      select.innerHTML = "";
-      select.append(new Option(allLabel, ""));
-      values.forEach((value) => select.append(new Option(value, value)));
-    }
-
-    function setupDurations() {
-      els.duration.innerHTML = "";
-      DURATIONS.forEach((duration) => {
-        els.duration.append(new Option(DURATION_LABELS[duration], String(duration)));
-      });
-      els.duration.value = String(state.selectedDuration);
-    }
-
-    async function load() {
-      els.loadStatus.textContent = "로딩";
-      els.reload.disabled = true;
-      try {
-        setupDurations();
-        const [stations, designCount] = await Promise.all([
-          fromRest("/rest/v1/regional_frequency_stations?select=station_id,source,station_name,region,basin,agency,lat,lon&order=station_id.asc"),
-          countRows("regional_frequency_design_rainfall")
-        ]);
-        state.stations = stations;
-        els.stationCount.textContent = formatNumber(stations.length);
-        els.designCount.textContent = formatNumber(designCount);
-        setOptions(els.basin, uniqueSorted(stations, "basin"), "전체");
-        setOptions(els.agency, uniqueSorted(stations, "agency"), "전체");
-        applyFilters();
-        if (state.filteredStations.length) {
-          await selectStation(state.filteredStations[0].station_id);
-        }
-        els.loadStatus.textContent = "준비됨";
-      } catch (error) {
-        els.loadStatus.textContent = "오류";
-        els.stationList.innerHTML = '<div class="empty">데이터를 불러오지 못했습니다.</div>';
-        console.error(error);
-      } finally {
-        els.reload.disabled = false;
-      }
-    }
-
-    function applyFilters() {
-      const query = normalize(els.search.value);
-      const basin = els.basin.value;
-      const agency = els.agency.value;
-      state.filteredStations = state.stations.filter((station) => {
-        const haystack = normalize([
-          station.station_id,
-          station.station_name,
-          station.region,
-          station.basin,
-          station.agency,
-          station.source
-        ].join(" "));
-        return (!query || haystack.includes(query))
-          && (!basin || station.basin === basin)
-          && (!agency || station.agency === agency);
-      });
-      renderStationList();
-    }
-
-    function renderStationList() {
-      els.filteredCount.textContent = formatNumber(state.filteredStations.length) + "개";
-      if (!state.filteredStations.length) {
-        els.stationList.innerHTML = '<div class="empty">조건에 맞는 관측소가 없습니다.</div>';
-        return;
-      }
-      els.stationList.innerHTML = state.filteredStations.map((station) => {
-        const active = state.selectedStation?.station_id === station.station_id ? " active" : "";
-        return '<button class="station' + active + '" type="button" data-id="' + station.station_id + '">'
-          + '<strong>' + escapeHtml(station.station_name) + '</strong>'
-          + '<small>' + escapeHtml(station.station_id + " · " + (station.region || "")) + '</small>'
-          + '</button>';
-      }).join("");
-      els.stationList.querySelectorAll("button").forEach((button) => {
-        button.addEventListener("click", () => selectStation(button.dataset.id));
-      });
-    }
-
-    async function selectStation(stationId) {
-      const station = state.stations.find((item) => item.station_id === stationId);
-      if (!station) return;
-      state.selectedStation = station;
-      renderStationList();
-      els.stationName.textContent = station.station_name;
-      els.stationCode.textContent = station.station_id;
-      els.stationChips.innerHTML = [
-        station.basin,
-        station.agency,
-        station.region,
-        station.lat && station.lon ? "위치 " + Number(station.lat).toFixed(4) + ", " + Number(station.lon).toFixed(4) : ""
-      ].filter(Boolean).map((value) => '<span class="chip">' + escapeHtml(value) + '</span>').join("");
-      els.tableWrap.innerHTML = '<div class="empty">기준강우량을 불러오는 중입니다.</div>';
-      els.chart.innerHTML = "";
-
-      try {
-        const rows = await fromRest(
-          "/rest/v1/regional_frequency_design_rainfall?select=duration_min,return_period_year,rainfall_mm&station_id=eq."
-          + encodeURIComponent(station.station_id)
-          + "&order=duration_min.asc&order=return_period_year.asc"
-        );
-        state.designRows = rows.map((row) => ({
-          duration_min: Number(row.duration_min),
-          return_period_year: Number(row.return_period_year),
-          rainfall_mm: Number(row.rainfall_mm)
-        }));
-        renderDesign();
-      } catch (error) {
-        els.tableWrap.innerHTML = '<div class="empty">기준강우량을 불러오지 못했습니다.</div>';
-        console.error(error);
-      }
-    }
-
-    function renderDesign() {
-      const max = Math.max(...state.designRows.map((row) => row.rainfall_mm));
-      els.maxRainfall.textContent = Number.isFinite(max) ? formatNumber(max, 1) + " mm" : "-";
-      renderChart();
-      renderTable();
-    }
-
-    function renderChart() {
-      const rows = state.designRows.filter((row) => row.duration_min === state.selectedDuration);
-      if (!rows.length) {
-        els.chart.innerHTML = '<div class="empty">표시할 자료가 없습니다.</div>';
-        return;
-      }
-      const max = Math.max(...rows.map((row) => row.rainfall_mm));
-      els.chart.innerHTML = rows.map((row) => {
-        const height = Math.max(3, Math.round((row.rainfall_mm / max) * 145));
-        return '<div class="bar-wrap">'
-          + '<div class="bar-track"><div class="bar" style="height:' + height + 'px"></div></div>'
-          + '<div class="bar-value">' + formatNumber(row.rainfall_mm, 1) + '</div>'
-          + '<div class="bar-label">' + row.return_period_year + '년</div>'
-          + '</div>';
-      }).join("");
-    }
-
-    function renderTable() {
-      const periods = [...new Set(state.designRows.map((row) => row.return_period_year))].sort((a, b) => a - b);
-      const byDuration = new Map();
-      state.designRows.forEach((row) => {
-        if (!byDuration.has(row.duration_min)) byDuration.set(row.duration_min, new Map());
-        byDuration.get(row.duration_min).set(row.return_period_year, row.rainfall_mm);
-      });
-
-      const head = '<tr><th>지속시간</th>' + periods.map((period) => '<th>' + period + '년</th>').join("") + '</tr>';
-      const body = DURATIONS.map((duration) => {
-        const values = byDuration.get(duration) || new Map();
-        return '<tr><td>' + DURATION_LABELS[duration] + '</td>'
-          + periods.map((period) => '<td>' + formatNumber(values.get(period), 1) + '</td>').join("")
-          + '</tr>';
-      }).join("");
-      els.tableWrap.innerHTML = '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
-    }
-
-    function downloadCsv() {
-      if (!state.selectedStation || !state.designRows.length) return;
-      const lines = [
-        "station_id,station_name,region,duration_min,return_period_year,rainfall_mm",
-        ...state.designRows.map((row) => [
-          state.selectedStation.station_id,
-          state.selectedStation.station_name,
-          state.selectedStation.region,
-          row.duration_min,
-          row.return_period_year,
-          row.rainfall_mm
-        ].map(csvCell).join(","))
-      ];
-      const blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "floodal_" + state.selectedStation.station_id + "_probability_rainfall.csv";
-      link.click();
-      URL.revokeObjectURL(link.href);
-    }
-
-    function csvCell(value) {
-      const text = String(value ?? "");
-      return /[",\n]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
-    }
-
-    function escapeHtml(value) {
-      return String(value ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-
-    els.search.addEventListener("input", applyFilters);
-    els.basin.addEventListener("change", applyFilters);
-    els.agency.addEventListener("change", applyFilters);
-    els.duration.addEventListener("change", () => {
-      state.selectedDuration = Number(els.duration.value);
-      renderChart();
-    });
-    els.reload.addEventListener("click", load);
-    els.download.addEventListener("click", downloadCsv);
-
-    load();
-  </script>
+  <script>window.RAINFALL_FREQUENCY_DATA = {"region": "10014010", "source": "wamis", "station_id": "10014010", "station_name": "평창군(월정분교)", "start_time": "2026-06-01 00:00", "end_time": "2026-06-10 00:00", "durations_min": [60, 120, 180, 360, 540, 720, 1440, 2880], "db_source": "rain_2022.db.rain_2022", "source_provider": "HRFCO 수문 OpenAPI", "results": []};</script>
+  <script src="app.js"></script>
 </body>
 </html>
