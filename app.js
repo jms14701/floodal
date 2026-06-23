@@ -3,7 +3,7 @@ const IS_LOCAL_API_HOST = ["127.0.0.1:8765", "localhost:8765"].includes(location
 const API_BASE = IS_LOCAL_API_HOST
   ? ""
   : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || "").replace(/\/+$/, "");
-const STATIC_DATA_VERSION = "staticresults2";
+const STATIC_DATA_VERSION = "staticall1";
 
 const DURATION_LABELS = {
   60: "1H",
@@ -587,7 +587,7 @@ function normalizeDateTimeText(value) {
 }
 
 function staticAnalysisMessage() {
-  return "공개 페이지에는 현재 기본 기간(2026-06-01 00:00~2026-06-10 00:00) 섬진강 정적 분석 결과만 포함되어 있습니다.";
+  return "공개 페이지에는 현재 기본 기간(2026-06-01 00:00~2026-06-10 00:00) 중권역 정적 분석 결과만 포함되어 있습니다.";
 }
 
 async function runPublicBasinAnalysis(basin, durations, targetStations) {
