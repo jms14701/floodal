@@ -1,6 +1,7 @@
 const initial = window.RAINFALL_FREQUENCY_DATA || {};
-
-const USE_RUNTIME_API = !["127.0.0.1:8765", "localhost:8765"].includes(location.host);
+const API_BASE = ["127.0.0.1:8765", "localhost:8765"].includes(location.host)
+  ? ""
+  : "";
 
 const DURATION_LABELS = {
   60: "1H",
@@ -659,10 +660,6 @@ function renderTable() {
 }
 
 async function downloadRawCsv() {
-  if (USE_RUNTIME_API) {
-    els.status.textContent = "GitHub Pages 공개판은 원자료 CSV 다운로드용 파이썬 서버가 없습니다. 원자료 CSV는 로컬 http://127.0.0.1:8765/ 에서 내려받으세요.";
-    return;
-  }
   if (isBasinMode()) {
     els.status.textContent = "중권역 전체 원자료는 용량이 커서 결과 CSV/XLSX로 받도록 구성했습니다. 원자료 CSV는 개별 관측소 모드에서 받으세요.";
     return;
@@ -673,7 +670,7 @@ async function downloadRawCsv() {
   }
   els.rawButton.disabled = true;
   try {
-    const response = await fetch("/api/rainfall/raw", {
+    const response = await fetch(apiUrl("/api/rainfall/raw"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -707,10 +704,7 @@ async function downloadRawCsv() {
 }
 
 async function fetchJson(url, options) {
-  if (USE_RUNTIME_API && String(url).startsWith("/api/")) {
-    return fetchPublicJson(url, options || {});
-  }
-  const response = await fetch(url, options);
+  const response = await fetch(apiUrl(url), options);
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
     throw new Error(data.error || `${url} 호출 실패`);
@@ -718,104 +712,9 @@ async function fetchJson(url, options) {
   return data;
 }
 
-async function fetchPublicJson(url, options) {
-  const method = String(options.method || "GET").toUpperCase();
-  if (url === "/api/db/verify") {
-    const longRows = await countSupabaseRows("regional_frequency_design_rainfall");
-    return {
-      ok: true,
-      summary: {
-        database_name: "rain_2022.db",
-        row_count: Math.round(longRows / 8)
-      },
-      sample: []
-    };
-  }
-
-  if (url === "/api/design-rainfall/stations") {
-    const rows = await supabaseRows("/rest/v1/regional_frequency_stations?select=station_id,source,station_name,region,basin,agency,lat,lon&order=station_id.asc");
-    return {
-      ok: true,
-      count: rows.length,
-      stations: rows.map((row) => ({
-        ...row,
-        station_code: row.station_id,
-        return_period_count: 14
-      }))
-    };
-  }
-
-  if (url === "/api/stations") {
-    const response = await fetch("api-data/stations.json", { cache: "no-store" });
-    if (!response.ok) throw new Error("공개 관측소 목록을 불러오지 못했습니다.");
-    return response.json();
-  }
-
-  if (url.startsWith("/api/design-rainfall/")) {
-    const stationCode = decodeURIComponent(String(url).split("/").pop() || "");
-    const rows = await supabaseRows(
-      "/rest/v1/regional_frequency_design_rainfall"
-      + "?select=station_id,duration_min,return_period_year,rainfall_mm"
-      + "&station_id=eq." + encodeURIComponent(stationCode)
-      + "&order=return_period_year.asc&order=duration_min.asc"
-    );
-    return {
-      ok: true,
-      station_code: stationCode,
-      rows: rows.map((row) => ({
-        station_code: row.station_id,
-        duration_min: Number(row.duration_min),
-        duration_label: durationKorean(row.duration_min),
-        return_period_year: Number(row.return_period_year),
-        rainfall_mm: Number(row.rainfall_mm)
-      }))
-    };
-  }
-
-  if (url === "/api/rainfall/analyze" && method === "POST") {
-    throw new Error("GitHub Pages 공개판은 HRFCO 실시간 분석용 파이썬 서버가 없습니다. 같은 화면과 기준강우량 조회는 공개 URL에서 가능하고, 실시간 분석 실행은 로컬 http://127.0.0.1:8765/ 에서 실행하세요.");
-  }
-
-  if (url === "/api/rainfall/analyze/start" && method === "POST") {
-    throw new Error("GitHub Pages 공개판은 중권역 일괄 실시간 분석용 파이썬 서버가 없습니다. 일괄 분석은 로컬 http://127.0.0.1:8765/ 에서 실행하세요.");
-  }
-
-  throw new Error(`${url} 공개 API 연결이 준비되지 않았습니다.`);
-}
-
-async function supabaseRows(path) {
-  const response = await fetch(REMOVED_PUBLIC_URL + path, {
-    headers: supabaseHeaders()
-  });
-  const data = await response.json().catch(() => ([]));
-  if (!response.ok) {
-    throw new Error(data.message || data.error || "Supabase 공개 데이터를 불러오지 못했습니다.");
-  }
-  return data;
-}
-
-async function countSupabaseRows(table) {
-  const response = await fetch(`${REMOVED_PUBLIC_URL}/rest/v1/${table}?select=*`, {
-    method: "HEAD",
-    headers: {
-      ...supabaseHeaders(),
-      Prefer: "count=exact",
-      Range: "0-0"
-    }
-  });
-  if (!response.ok) {
-    throw new Error("Supabase 행 수를 확인하지 못했습니다.");
-  }
-  const contentRange = response.headers.get("content-range") || "";
-  const match = contentRange.match(/\/(\d+)$/);
-  return match ? Number(match[1]) : 0;
-}
-
-function supabaseHeaders() {
-  return {
-    apikey: REMOVED_PUBLIC_KEY,
-    Authorization: "Bearer " + REMOVED_PUBLIC_KEY
-  };
+function apiUrl(url) {
+  if (!API_BASE || !String(url).startsWith("/api/")) return url;
+  return API_BASE + url;
 }
 
 function escapeHtml(value) {
