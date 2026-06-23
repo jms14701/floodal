@@ -715,6 +715,16 @@ function emptySvgText(message) {
   return `<text x="380" y="180" text-anchor="middle" fill="#64748b" font-size="15" font-weight="800">${escapeHtml(message)}</text>`;
 }
 
+function compareResultTableRows(a, b) {
+  const stationA = String(a.station_id || a.station_name || a.design_station_code || "");
+  const stationB = String(b.station_id || b.station_name || b.design_station_code || "");
+  const stationCompare = stationA.localeCompare(stationB, "ko-KR", { numeric: true, sensitivity: "base" });
+  if (stationCompare) return stationCompare;
+  const nameCompare = String(a.station_name || "").localeCompare(String(b.station_name || ""), "ko-KR", { numeric: true, sensitivity: "base" });
+  if (nameCompare) return nameCompare;
+  return Number(a.duration_min) - Number(b.duration_min);
+}
+
 function renderTable() {
   if (!state.results.length) {
     els.rows.innerHTML = `<tr><td colspan="10">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
@@ -722,7 +732,7 @@ function renderTable() {
   }
   els.rows.innerHTML = state.results
     .slice()
-    .sort((a, b) => Number(a.duration_min) - Number(b.duration_min))
+    .sort(compareResultTableRows)
     .map((row) => {
       const severity = severityClass(row.estimated_return_period_label, row.estimated_return_period_year);
       return `
