@@ -3,7 +3,7 @@ const IS_LOCAL_API_HOST = ["127.0.0.1:8765", "localhost:8765"].includes(location
 const API_BASE = IS_LOCAL_API_HOST
   ? ""
   : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || "").replace(/\/+$/, "");
-const STATIC_DATA_VERSION = "staticresults1";
+const STATIC_DATA_VERSION = "staticresults2";
 
 const DURATION_LABELS = {
   60: "1H",
@@ -1193,7 +1193,7 @@ function apiUrl(url) {
   if (!String(url).startsWith("/api/")) return url;
   if (IS_LOCAL_API_HOST) return url;
   if (!API_BASE) {
-    throw new Error("공개 페이지 API 주소가 설정되어 있지 않습니다. 민감한 API 주소를 저장소에 올리지 않도록 비워 두었습니다.");
+    throw new Error("이 기능은 공개 정적 페이지에서 사용할 수 없습니다.");
   }
   return API_BASE + url;
 }
