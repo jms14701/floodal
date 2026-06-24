@@ -3,7 +3,6 @@ const IS_LOCAL_API_HOST = ["127.0.0.1:8765", "localhost:8765"].includes(location
 const API_BASE = IS_LOCAL_API_HOST
   ? ""
   : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || "").replace(/\/+$/, "");
-const STATIC_DATA_VERSION = "staticstation1";
 
 const DURATION_LABELS = {
   60: "1H",
@@ -44,7 +43,6 @@ const state = {
   designRows: [],
   staticCatalog: null,
   staticDesignRainfall: null,
-  staticResults: null,
   results: initial.results || [],
   rawRecords: [],
   idfMode: "rainfall",
@@ -192,9 +190,9 @@ async function verifyDb() {
     const summary = data.summary || {};
     els.dbVerify.textContent = `행 수 ${number(summary.row_count || 0, 0)}건 검증`;
   } catch (error) {
-    els.dbVerify.textContent = !IS_LOCAL_API_HOST && !API_BASE ? "정적 기준자료" : "DB 검증 실패";
+    els.dbVerify.textContent = !IS_LOCAL_API_HOST && !API_BASE ? "실시간 API 필요" : "DB 검증 실패";
     els.status.textContent = !IS_LOCAL_API_HOST && !API_BASE
-      ? "공개 페이지용 정적 기준자료를 불러오는 중입니다."
+      ? "관측소와 기준표는 로드됐지만, 분석은 실시간 API가 연결되어야 실행됩니다."
       : error.message;
   }
 }
@@ -263,7 +261,7 @@ async function loadStaticDesignRows(stationCode) {
   }));
 }
 
-function staticDataUrl(path, version = STATIC_DATA_VERSION) {
+function staticDataUrl(path, version = "realtime1") {
   return `${path}?v=${encodeURIComponent(version)}`;
 }
 
@@ -443,10 +441,7 @@ async function runAnalysis() {
 
   beginLoading("HRFCO 10분 원자료를 가져와 이동합을 계산하는 중입니다.");
   try {
-    if (!canUseServerApi()) {
-      await runStaticStationAnalysis(body, durations);
-      return;
-    }
+    ensureRealtimeApi();
     const data = await fetchJson("/api/rainfall/analyze", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -483,10 +478,7 @@ async function runBasinAnalysis(durations) {
   }
   beginLoading(`${basin} 중권역 ${number(targetCount, 0)}개 관측소 분석 작업을 시작합니다.`);
   try {
-    if (!canUseServerApi()) {
-      await runStaticBasinAnalysis(basin, durations, targetCount);
-      return;
-    }
+    ensureRealtimeApi();
     if (API_BASE) {
       await runPublicBasinAnalysis(basin, durations, targetStations);
       return;
@@ -510,94 +502,13 @@ async function runBasinAnalysis(durations) {
   }
 }
 
-async function runStaticStationAnalysis(body, durations) {
-  const analysis = await findStaticAnalysis("station", "", body.start_time, body.end_time, body.station_id);
-  const results = filterStaticResults(analysis, durations, body.station_id);
-  if (!results.length) {
-    throw new Error(staticAnalysisMessage());
-  }
-  state.results = results;
-  state.rawRecords = [];
-  state.lastAnalysis = { ...analysis, results, result_count: results.length };
-  els.status.textContent = `정적 분석 결과 표시: ${body.station_name} 결과 ${number(results.length, 0)}건.`;
-  renderAll();
-}
-
-async function runStaticBasinAnalysis(basin, durations, targetCount) {
-  const startTime = fromDateTimeLocal(els.start.value);
-  const endTime = fromDateTimeLocal(els.end.value);
-  const analysis = await findStaticAnalysis("basin", basin, startTime, endTime);
-  const results = filterStaticResults(analysis, durations);
-  if (!results.length) {
-    throw new Error(staticAnalysisMessage());
-  }
-  state.results = results;
-  state.rawRecords = [];
-  state.lastAnalysis = { ...analysis, results, result_count: results.length };
-  els.status.textContent =
-    `정적 분석 결과 표시: ${basin} 중권역 ${number(analysis.station_count || targetCount, 0)}개 관측소, `
-    + `결과 ${number(results.length, 0)}건. CSV/XLSX를 받을 수 있습니다.`;
-  renderAll();
-}
-
-async function findStaticAnalysis(scope, basin, startTime, endTime, stationId = "") {
-  const payload = await loadStaticResults();
-  const normalizedStart = normalizeDateTimeText(startTime);
-  const normalizedEnd = normalizeDateTimeText(endTime);
-  let match = selectStaticAnalysis(payload.analyses || [], scope, basin, normalizedStart, normalizedEnd, stationId);
-  if (!match) {
-    const refreshed = await loadStaticResults(true);
-    match = selectStaticAnalysis(refreshed.analyses || [], scope, basin, normalizedStart, normalizedEnd, stationId);
-  }
-  if (!match) {
-    throw new Error(staticAnalysisMessage());
-  }
-  return match;
-}
-
-function selectStaticAnalysis(analyses, scope, basin, normalizedStart, normalizedEnd, stationId = "") {
-  return analyses.find((analysis) => {
-    const scopeMatches = analysis.scope === scope || (scope === "station" && analysis.scope === "basin");
-    const basinMatches = !basin || analysis.middle_basin === basin;
-    const timeMatches =
-      normalizeDateTimeText(analysis.start_time) === normalizedStart
-      && normalizeDateTimeText(analysis.end_time) === normalizedEnd;
-    const stationMatches = !stationId || (analysis.results || []).some((row) => String(row.station_id) === String(stationId));
-    return scopeMatches && basinMatches && timeMatches && stationMatches;
-  });
-}
-
-async function loadStaticResults(refresh = false) {
-  if (state.staticResults && !refresh) return state.staticResults;
-  const version = refresh ? `${STATIC_DATA_VERSION}-${Date.now()}` : STATIC_DATA_VERSION;
-  const response = await fetch(staticDataUrl("data/static-results.json", version), {
-    cache: refresh ? "no-store" : "default"
-  });
-  if (!response.ok) {
-    throw new Error(staticAnalysisMessage());
-  }
-  state.staticResults = await response.json();
-  return state.staticResults;
-}
-
-function filterStaticResults(analysis, durations, stationId = "") {
-  const durationSet = new Set(durations.map(Number));
-  return (analysis.results || []).filter((row) => {
-    if (stationId && String(row.station_id) !== String(stationId)) return false;
-    return durationSet.has(Number(row.duration_min));
-  });
-}
-
 function canUseServerApi() {
   return IS_LOCAL_API_HOST || Boolean(API_BASE);
 }
 
-function normalizeDateTimeText(value) {
-  return String(value || "").replace("T", " ").slice(0, 16);
-}
-
-function staticAnalysisMessage() {
-  return "공개 페이지에는 미리 계산된 정적 분석 결과만 포함되어 있습니다.";
+function ensureRealtimeApi() {
+  if (canUseServerApi()) return;
+  throw new Error("실시간 분석 API가 연결되어 있지 않습니다. GitHub Pages 단독으로는 HRFCO 키를 숨긴 실시간 분석을 실행할 수 없습니다.");
 }
 
 async function runPublicBasinAnalysis(basin, durations, targetStations) {
@@ -1203,7 +1114,7 @@ function apiUrl(url) {
   if (!String(url).startsWith("/api/")) return url;
   if (IS_LOCAL_API_HOST) return url;
   if (!API_BASE) {
-    throw new Error("이 기능은 공개 정적 페이지에서 사용할 수 없습니다.");
+    throw new Error("실시간 분석 API가 연결되어 있지 않습니다.");
   }
   return API_BASE + url;
 }
