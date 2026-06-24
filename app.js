@@ -454,6 +454,7 @@ async function runAnalysis() {
     state.lastAnalysis = data;
     els.status.textContent = `분석 완료: 원자료 ${number(data.raw_record_count || 0, 0)}건, 결과 ${state.results.length}건.`;
     renderAll();
+    revealResults();
   } catch (error) {
     els.status.textContent = error.message;
   } finally {
@@ -588,6 +589,7 @@ async function runPublicBasinAnalysis(basin, durations, targetStations) {
     `중권역 분석 완료: ${number(targetStations.length, 0)}개 관측소, `
     + `결과 ${number(results.length, 0)}건, 오류 ${number(errors.length, 0)}건.`;
   renderAll();
+  revealResults();
 }
 
 async function pollAnalysisJob(jobId) {
@@ -609,6 +611,7 @@ async function pollAnalysisJob(jobId) {
         `중권역 분석 완료: ${number(data.station_count || 0, 0)}개 관측소, `
         + `결과 ${number(state.results.length, 0)}건, 오류 ${number(data.error_count || 0, 0)}건. CSV/XLSX를 받을 수 있습니다.`;
       renderAll();
+      revealResults();
       return;
     }
   }
@@ -651,6 +654,13 @@ function renderAll() {
   renderBars();
   renderIdf();
   renderTable();
+}
+
+function revealResults() {
+  if (!state.results.length) return;
+  requestAnimationFrame(() => {
+    $("#resultPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function renderSummary() {
