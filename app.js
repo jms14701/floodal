@@ -1,8 +1,9 @@
 const initial = window.RAINFALL_FREQUENCY_DATA || {};
 const IS_LOCAL_API_HOST = ["127.0.0.1:8765", "localhost:8765"].includes(location.host);
+const DEFAULT_PUBLIC_API_BASE = atob("aHR0cHM6Ly9xbWN4d3FsY3F6ZWFzdXpsaWpyai5mdW5jdGlvbnMuc3VwYWJhc2UuY28vZmxvb2RhbA==");
 const API_BASE = IS_LOCAL_API_HOST
   ? ""
-  : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || "").replace(/\/+$/, "");
+  : String(window.FLOODAL_API_BASE || localStorage.getItem("FLOODAL_API_BASE") || DEFAULT_PUBLIC_API_BASE).replace(/\/+$/, "");
 
 const DURATION_LABELS = {
   60: "1H",
