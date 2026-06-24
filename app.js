@@ -21,7 +21,7 @@ const RESULT_DOWNLOAD_COLUMNS = [
   ["station_id", "관측소 코드"],
   ["design_station_code", "기준 지점코드"],
   ["region", "지역/기준 코드"],
-  ["observation_source", "자료 제공 기관"],
+  ["observation_source", "원자료 제공 기관"],
   ["duration_min", "지속시간(분)"],
   ["duration_label", "지속시간"],
   ["max_rainfall_mm", "최대강우량(mm)"],
@@ -71,6 +71,7 @@ const els = {
   progressWrap: $("#progressWrap"),
   progressFill: $("#progressFill"),
   progressLabel: $("#progressLabel"),
+  sourceProvider: $("#sourceProviderText"),
   peak1h: $("#peak1hValue"),
   totalRainfall: $("#totalRainfallValue"),
   maxFrequency: $("#maxFrequencyValue"),
@@ -133,6 +134,46 @@ function selectedOptionData(select) {
   return select.selectedOptions[0]?.dataset || {};
 }
 
+function normalizeAgencyName(value) {
+  const text = String(value || "").trim();
+  if (["수공", "한국수자원공사", "수자원공사"].includes(text)) return "수자원공사";
+  if (["기후에너지환경부", "환경부", "기후부"].includes(text)) return "기후부";
+  if (text.includes("기상청")) return "기상청";
+  return text;
+}
+
+function stationProviderById(stationId) {
+  const id = String(stationId || "");
+  const station = state.stations.find((item) => item.station_id === id)
+    || state.designStations.find((item) => item.station_id === id || item.station_code === id);
+  return normalizeAgencyName(station?.agency || agencyFromRegion(station?.region || ""));
+}
+
+function providerForRow(row) {
+  const fromStation = stationProviderById(row.station_id);
+  if (fromStation) return fromStation;
+  const direct = normalizeAgencyName(row.observation_source || row.source_provider || "");
+  if (direct && direct !== "기후부, 수자원공사, 기상청") return direct;
+  return normalizeAgencyName(initial.source_provider || "");
+}
+
+function withRowProviders(rows) {
+  return rows.map((row) => ({
+    ...row,
+    observation_source: providerForRow(row)
+  }));
+}
+
+function renderSourceProvider() {
+  if (!els.sourceProvider) return;
+  if (isBasinMode()) {
+    const agencies = [...new Set(availableBasinStations(els.basin.value).map((station) => normalizeAgencyName(station.agency)).filter(Boolean))];
+    els.sourceProvider.textContent = agencies.length ? agencies.join(", ") : "WAMIS 관측소별 기관";
+    return;
+  }
+  els.sourceProvider.textContent = stationProviderById(els.stationSelect.value || els.stationId.value) || "WAMIS 관측소별 기관";
+}
+
 function normalizeStation(row) {
   return {
     station_id: String(row.station_id || row.station_code || ""),
@@ -159,6 +200,7 @@ function initializeInputs() {
   els.start.value = toDateTimeLocal(initial.start_time || "2026-06-01 00:00");
   els.end.value = toDateTimeLocal(initial.end_time || "2026-06-10 00:00");
   renderDurationButtons();
+  renderSourceProvider();
 }
 
 function renderDurationButtons() {
@@ -344,6 +386,7 @@ function optionHtml(station) {
 function syncStationFields() {
   if (isBasinMode()) {
     selectFirstDesignForBasin();
+    renderSourceProvider();
     return;
   }
   const stationId = els.stationSelect.value || els.stationId.value;
@@ -351,6 +394,7 @@ function syncStationFields() {
   if ([...els.designSelect.options].some((option) => option.value === stationId)) {
     els.designSelect.value = stationId;
   }
+  renderSourceProvider();
 }
 
 function isBasinMode() {
@@ -376,6 +420,7 @@ function updateAnalysisMode() {
   } else {
     syncStationFields();
   }
+  renderSourceProvider();
 }
 
 function selectFirstDesignForBasin() {
@@ -433,6 +478,7 @@ async function runAnalysis() {
   const body = {
     station_id: els.stationId.value.trim(),
     station_name: selectedOptionData(els.stationSelect).name || els.stationId.value.trim(),
+    agency: stationProviderById(els.stationId.value.trim()),
     design_station_code: els.designSelect.value,
     region: els.designSelect.value,
     start_time: fromDateTimeLocal(els.start.value),
@@ -448,7 +494,7 @@ async function runAnalysis() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body)
     });
-    state.results = data.results || [];
+    state.results = withRowProviders(data.results || []);
     state.rawRecords = data.raw_records || [];
     state.designRows = data.design_rows || [];
     state.lastAnalysis = data;
@@ -535,6 +581,7 @@ async function runPublicBasinAnalysis(basin, durations, targetStations) {
           body: JSON.stringify({
             station_id: station.station_id,
             station_name: station.station_name,
+            agency: normalizeAgencyName(station.agency),
             design_station_code: station.station_id,
             region: station.station_id,
             start_time: fromDateTimeLocal(els.start.value),
@@ -542,7 +589,7 @@ async function runPublicBasinAnalysis(basin, durations, targetStations) {
             durations_min: durations
           })
         });
-        resultsByIndex[targetIndex] = data.results || [];
+        resultsByIndex[targetIndex] = withRowProviders(data.results || []);
         rawRecordCount += Number(data.raw_record_count || 0);
         totalRainfallMm += Number(data.total_rainfall_mm || 0);
         els.status.textContent =
@@ -604,7 +651,7 @@ async function pollAnalysisJob(jobId) {
       throw new Error(data.error || data.message || "중권역 분석 실패");
     }
     if (data.status === "complete") {
-      state.results = data.results || [];
+      state.results = withRowProviders(data.results || []);
       state.rawRecords = [];
       state.lastAnalysis = data;
       els.status.textContent =
@@ -650,6 +697,7 @@ function setProgress(value, label = "") {
 }
 
 function renderAll() {
+  renderSourceProvider();
   renderSummary();
   renderBars();
   renderIdf();
@@ -897,7 +945,7 @@ function downloadRows() {
 
 function downloadCellValue(row, key) {
   if (key === "design_station_code") return row.design_station_code || row.region || "";
-  if (key === "observation_source") return row.observation_source || row.source_provider || initial.source_provider || "기후부, 수자원공사, 기상청";
+  if (key === "observation_source") return providerForRow(row);
   if (key === "duration_label") return row.duration_label || durationKorean(row.duration_min);
   if (key === "design_rainfall_mm") return row.design_rainfall_mm ?? "";
   return row[key] ?? "";
