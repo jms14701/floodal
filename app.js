@@ -177,9 +177,22 @@ function shouldUseClientChunkedKma(body) {
 
 async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
   ensureRealtimeApi();
-  if (!state.designRows.length) {
-    await loadDesignRows();
-  }
+  const data = await buildClientChunkedKmaAnalysis(body, durations, ({ completed, total }) => {
+    setProgress(Math.round((completed * 1000) / total) / 10, `${completed}/${total}`);
+    els.status.textContent = `긴 기간 기상청 원자료를 나눠 가져오는 중입니다. ${completed}/${total}`;
+  });
+  state.results = withRowProviders(data.results || []);
+  state.rawRecords = data.raw_records || [];
+  state.designRows = data.design_rows || state.designRows;
+  state.lastAnalysis = data;
+  state.lastAnalysisKey = requestKey;
+  els.status.textContent = `분석 완료: 원자료 ${number(data.raw_record_count || 0, 0)}건, 결과 ${state.results.length}건.`;
+  renderAll();
+  revealResults();
+}
+
+async function buildClientChunkedKmaAnalysis(body, durations, onProgress = null) {
+  const designRows = await designRowsForCode(body.design_station_code);
   const start = parseAppDate(body.start_time);
   const end = parseAppDate(body.end_time);
   const chunks = dateChunks(start, end, 7);
@@ -188,7 +201,7 @@ async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
   let nonzeroCount = 0;
   let totalRainfall = 0;
 
-  await mapLimit(chunks, 3, async ([chunkStart, chunkEnd]) => {
+  await mapLimit(chunks, 2, async ([chunkStart, chunkEnd]) => {
     const payload = {
       ...body,
       start_time: formatAppDate(chunkStart),
@@ -206,8 +219,7 @@ async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
       rawByTime.set(timestamp, Number(record.rainfall_mm || 0));
     }
     completed += 1;
-    setProgress(Math.round((completed * 1000) / chunks.length) / 10, `${completed}/${chunks.length}`);
-    els.status.textContent = `긴 기간 기상청 원자료를 나눠 가져오는 중입니다. ${completed}/${chunks.length}`;
+    if (onProgress) onProgress({ completed, total: chunks.length });
   });
 
   const rawRecords = regularizeClientRecords(rawByTime, start, end, 10);
@@ -218,7 +230,7 @@ async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
   }
   const maxima = calculateClientDurationMaxima(rawRecords, durations);
   const results = maxima.map((maximum) => {
-    const estimate = estimateClientFrequency(state.designRows, body.design_station_code, maximum.duration_min, maximum.max_rainfall_mm);
+    const estimate = estimateClientFrequency(designRows, body.design_station_code, maximum.duration_min, maximum.max_rainfall_mm);
     return {
       region: body.design_station_code,
       station_id: body.station_id,
@@ -241,10 +253,7 @@ async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
       design_rainfall_mm: estimate.upper_rainfall_mm ?? estimate.lower_rainfall_mm ?? ""
     };
   });
-
-  state.results = withRowProviders(results);
-  state.rawRecords = rawRecords;
-  state.lastAnalysis = {
+  return {
     ok: true,
     analysis_scope: "station",
     station_count: 1,
@@ -256,12 +265,21 @@ async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
     raw_record_count: rawRecords.length,
     nonzero_count: nonzeroCount,
     total_rainfall_mm: Math.round(totalRainfall * 1000) / 1000,
-    results
+    results,
+    design_rows: designRows,
+    raw_records: rawRecords
   };
-  state.lastAnalysisKey = requestKey;
-  els.status.textContent = `분석 완료: 원자료 ${number(rawRecords.length, 0)}건, 결과 ${state.results.length}건.`;
-  renderAll();
-  revealResults();
+}
+
+async function designRowsForCode(stationCode) {
+  const code = String(stationCode || "");
+  try {
+    const data = await fetchJson(`/api/design-rainfall/${encodeURIComponent(code)}`);
+    if (Array.isArray(data.rows) && data.rows.length) return data.rows;
+  } catch (_) {
+    // fall back to static bundle
+  }
+  return loadStaticDesignRows(code);
 }
 
 function parseAppDate(value) {
@@ -827,7 +845,18 @@ async function runPublicBasinAnalysis(basin, durations, targetStations, requestK
   let completed = 0;
   let rawRecordCount = 0;
   let totalRainfallMm = 0;
-  const workerCount = Math.min(8, targetStations.length);
+  const stationBodies = targetStations.map((station) => ({
+    station_id: station.station_id,
+    station_name: station.station_name,
+    agency: normalizeAgencyName(station.agency),
+    design_station_code: station.station_id,
+    region: station.station_id,
+    start_time: fromDateTimeLocal(els.start.value),
+    end_time: fromDateTimeLocal(els.end.value),
+    durations_min: durations
+  }));
+  const hasChunkedKma = stationBodies.some((body) => shouldUseClientChunkedKma(body));
+  const workerCount = Math.min(hasChunkedKma ? 2 : 8, targetStations.length);
   const resultCount = () => resultsByIndex.reduce((total, rows) => total + (Array.isArray(rows) ? rows.length : 0), 0);
 
   async function analyzeNext() {
@@ -835,21 +864,19 @@ async function runPublicBasinAnalysis(basin, durations, targetStations, requestK
       const targetIndex = nextIndex;
       nextIndex += 1;
       const station = targetStations[targetIndex];
+      const body = stationBodies[targetIndex];
       try {
-        const data = await fetchJson("/api/rainfall/analyze", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            station_id: station.station_id,
-            station_name: station.station_name,
-            agency: normalizeAgencyName(station.agency),
-            design_station_code: station.station_id,
-            region: station.station_id,
-            start_time: fromDateTimeLocal(els.start.value),
-            end_time: fromDateTimeLocal(els.end.value),
-            durations_min: durations
-          })
-        });
+        const data = shouldUseClientChunkedKma(body)
+          ? await buildClientChunkedKmaAnalysis(body, durations, ({ completed: chunkDone, total: chunkTotal }) => {
+              els.status.textContent =
+                `${station.station_name} 원자료 ${chunkDone}/${chunkTotal}구간 처리 중 · `
+                + `전체 ${completed}/${targetStations.length}개 완료 · 결과 ${number(resultCount(), 0)}건`;
+            })
+          : await fetchJson("/api/rainfall/analyze", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body)
+            });
         resultsByIndex[targetIndex] = withRowProviders(data.results || []);
         rawRecordCount += Number(data.raw_record_count || 0);
         totalRainfallMm += Number(data.total_rainfall_mm || 0);
@@ -1474,9 +1501,6 @@ els.analysisMode.addEventListener("change", () => {
 
 els.basin.addEventListener("change", () => {
   clearResultsAfterInputChange();
-  if (els.basin.value) {
-    els.analysisMode.value = "basin";
-  }
   const current = els.stationSelect.value;
   populateStationSelect();
   if ([...els.stationSelect.options].some((option) => option.value === current)) {
