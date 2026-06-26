@@ -1051,13 +1051,16 @@ function renderBars() {
     .map((row) => {
       const width = Math.max(2, Number(row.max_rainfall_mm) / max * 100);
       const severity = severityClass(row.estimated_return_period_label, row.estimated_return_period_year);
+      const label = escapeHtml(row.estimated_return_period_label || "-");
+      const labelOutside = width < 24;
       return `
         <div class="bar-row">
           <div class="bar-label">${durationLabel(row.duration_min)}</div>
-          <div class="bar-track">
+          <div class="bar-track ${labelOutside ? "label-outside" : ""}" style="--bar-width: ${width}%">
             <div class="bar-fill ${severity}" data-width="${width}">
-              <span class="bar-period">${escapeHtml(row.estimated_return_period_label || "-")}</span>
+              ${labelOutside ? "" : `<span class="bar-period">${label}</span>`}
             </div>
+            ${labelOutside ? `<span class="bar-period bar-period-outside">${label}</span>` : ""}
           </div>
           <div class="bar-value">${number(row.max_rainfall_mm)}mm</div>
         </div>

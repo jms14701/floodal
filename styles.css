@@ -381,7 +381,7 @@ input:focus, select:focus, button:focus-visible {
   align-items: center;
   gap: 11px;
 }
-.bar-label, .bar-value, .bar-period {
+.bar-label, .bar-value {
   color: var(--muted);
   font-size: 13px;
   font-weight: 900;
@@ -406,6 +406,27 @@ input:focus, select:focus, button:focus-visible {
   font-size: 12px;
   font-weight: 900;
   transition: width 0.9s cubic-bezier(.2,.8,.2,1);
+}
+.bar-period {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.5);
+}
+.bar-track.label-outside .bar-period-outside {
+  position: absolute;
+  top: 0;
+  right: 8px;
+  bottom: 0;
+  left: calc(var(--bar-width) + 8px);
+  display: flex;
+  align-items: center;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: none;
 }
 .bar-fill.warning { background: linear-gradient(90deg, #f59e0b, var(--orange)); }
 .bar-fill.danger { background: linear-gradient(90deg, var(--orange), var(--red)); }
