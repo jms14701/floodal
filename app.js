@@ -486,7 +486,7 @@ async function runAnalysis() {
     durations_min: durations
   };
 
-  beginLoading("HRFCO 10분 원자료를 가져와 이동합을 계산하는 중입니다.");
+  beginLoading("관측 10분 원자료를 가져와 이동합을 계산하는 중입니다.");
   try {
     ensureRealtimeApi();
     const data = await fetchJson("/api/rainfall/analyze", {
@@ -556,7 +556,7 @@ function canUseServerApi() {
 
 function ensureRealtimeApi() {
   if (canUseServerApi()) return;
-  throw new Error("실시간 분석 API가 연결되어 있지 않습니다. GitHub Pages 단독으로는 HRFCO 키를 숨긴 실시간 분석을 실행할 수 없습니다.");
+  throw new Error("실시간 분석 API가 연결되어 있지 않습니다. GitHub Pages 단독으로는 API 키를 숨긴 실시간 분석을 실행할 수 없습니다.");
 }
 
 async function runPublicBasinAnalysis(basin, durations, targetStations) {
@@ -1133,6 +1133,8 @@ async function downloadRawCsv() {
       body: JSON.stringify({
         station_id: els.stationId.value.trim(),
         station_name: selectedOptionData(els.stationSelect).name || els.stationId.value.trim(),
+        agency: stationProviderById(els.stationId.value.trim()),
+        design_station_code: els.designSelect.value,
         region: els.designSelect.value,
         start_time: fromDateTimeLocal(els.start.value),
         end_time: fromDateTimeLocal(els.end.value),
