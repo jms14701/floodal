@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HydroAnalyze | 지속시간별 확률강우량</title>
-  <meta name="description" content="HRFCO 10분 강우량 이동합과 PostgreSQL rain_2022 확률강우량 기준표를 연결한 빈도해석 대시보드">
+  <meta name="description" content="기상청 APIHub와 HRFCO 10분 강우자료를 홍수량 산정지침_2022 기준자료와 연결한 빈도해석 대시보드">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
@@ -23,11 +23,12 @@
       </div>
       <div class="source-box">
         <span>원자료 제공 기관</span>
-        <strong id="sourceProviderText">WAMIS 관측소별 기관</strong>
+        <strong id="sourceProviderText">기상청 관측소: 기상청 APIHub에서 1분 AWS 자료를 가져와서 10분 단위로 변환
+기후부, 수자원공사 관측소: HRFCO API에서 10분 강우자료</strong>
       </div>
       <div class="source-box">
         <span>기준자료</span>
-        <strong>PostgreSQL rain_2022.db.rain_2022</strong>
+        <strong>홍수량 산정지침_2022</strong>
       </div>
     </aside>
 
@@ -136,7 +137,7 @@
         </article>
         <article class="stat-card fade-slide-up">
           <span class="stat-label">기준자료</span>
-          <strong id="dbSourceValue">rain_2022</strong>
+          <strong id="dbSourceValue">홍수량 산정지침_2022</strong>
           <small id="dbVerifyValue">DB 검증 전</small>
         </article>
       </section>
@@ -206,6 +207,6 @@
   </div>
 
   <script>window.RAINFALL_FREQUENCY_DATA = {"region": "10014010", "source": "wamis", "station_id": "10014010", "station_name": "평창군(월정분교)", "start_time": "2026-06-01 00:00", "end_time": "2026-06-10 00:00", "durations_min": [60, 120, 180, 360, 540, 720, 1440, 2880], "db_source": "rain_2022.db.rain_2022", "source_provider": "", "results": []};</script>
-  <script src="app.js?v=kmabasin1"></script>
+  <script src="app.js?v=providerdesc1"></script>
 </body>
 </html>

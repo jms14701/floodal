@@ -16,6 +16,8 @@ const DURATION_LABELS = {
   2880: "48H"
 };
 const COLORS = ["#2563eb", "#0891b2", "#0f766e", "#7c3aed", "#eab308", "#f97316", "#dc2626", "#475569", "#9333ea", "#0ea5e9"];
+const SOURCE_PROVIDER_DESCRIPTION = "기상청 관측소: 기상청 APIHub에서 1분 AWS 자료를 가져와서 10분 단위로 변환\n기후부, 수자원공사 관측소: HRFCO API에서 10분 강우자료";
+const DESIGN_SOURCE_LABEL = "홍수량 산정지침_2022";
 const RESULT_DOWNLOAD_COLUMNS = [
   ["station_name", "관측소"],
   ["station_id", "관측소 코드"],
@@ -429,12 +431,7 @@ function withRowProviders(rows) {
 
 function renderSourceProvider() {
   if (!els.sourceProvider) return;
-  if (isBasinMode()) {
-    const agencies = [...new Set(availableBasinStations(els.basin.value).map((station) => normalizeAgencyName(station.agency)).filter(Boolean))];
-    els.sourceProvider.textContent = agencies.length ? agencies.join(", ") : "WAMIS 관측소별 기관";
-    return;
-  }
-  els.sourceProvider.textContent = stationProviderById(els.stationSelect.value || els.stationId.value) || "WAMIS 관측소별 기관";
+  els.sourceProvider.textContent = SOURCE_PROVIDER_DESCRIPTION;
 }
 
 function normalizeStation(row) {
@@ -1018,7 +1015,7 @@ function renderSummary() {
   els.maxFrequency.textContent = maxFrequency?.estimated_return_period_label || "-";
   els.peakDuration.textContent = peak ? durationKorean(peak.duration_min) : "-";
   els.analysisPeriod.textContent = `${fromDateTimeLocal(els.start.value)} ~ ${fromDateTimeLocal(els.end.value)}`;
-  els.dbSource.textContent = "rain_2022.db.rain_2022";
+  els.dbSource.textContent = DESIGN_SOURCE_LABEL;
   els.maxFrequencyCard.className = `stat-card fade-slide-up ${severityClass(maxYear)}`;
 }
 

@@ -111,7 +111,7 @@ button:disabled { cursor: wait; opacity: 0.7; }
   background: rgba(255,255,255,0.06);
 }
 .source-box span { color: #9fb2c9; font-size: 12px; font-weight: 800; }
-.source-box strong { font-size: 13px; line-height: 1.35; }
+.source-box strong { font-size: 13px; line-height: 1.35; white-space: pre-line; }
 
 .dashboard {
   width: 100%;
