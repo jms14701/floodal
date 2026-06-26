@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+KR:wght@500;700;900&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:FILL@0..1&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=basinmetric1">
+  <link rel="stylesheet" href="styles.css?v=tablefreq1">
 </head>
 <body>
   <div class="app-shell">
@@ -194,11 +194,12 @@
                 <th>발생 시작시각</th>
                 <th>발생 종료시각</th>
                 <th>강우량빈도 기준값(mm)</th>
-                <th>재현기간</th>
+                <th>재현기간 구간</th>
+                <th>실제 재현기간</th>
               </tr>
             </thead>
             <tbody id="resultRows">
-              <tr><td colspan="10">분석을 실행하면 결과가 표시됩니다.</td></tr>
+              <tr><td colspan="11">분석을 실행하면 결과가 표시됩니다.</td></tr>
             </tbody>
           </table>
         </div>
@@ -207,6 +208,6 @@
   </div>
 
   <script>window.RAINFALL_FREQUENCY_DATA = {"region": "10014010", "source": "wamis", "station_id": "10014010", "station_name": "평창군(월정분교)", "start_time": "2026-06-01 00:00", "end_time": "2026-06-10 00:00", "durations_min": [60, 120, 180, 360, 540, 720, 1440, 2880], "db_source": "rain_2022.db.rain_2022", "source_provider": "", "results": []};</script>
-  <script src="app.js?v=basinmetric1"></script>
+  <script src="app.js?v=tablefreq1"></script>
 </body>
 </html>

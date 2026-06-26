@@ -31,8 +31,9 @@ const RESULT_DOWNLOAD_COLUMNS = [
   ["start_time", "발생 시작시각"],
   ["end_time", "발생 종료시각"],
   ["design_rainfall_mm", "기준 확률강우량(mm)"],
-  ["estimated_return_period_label", "재현기간"],
-  ["estimated_return_period_year", "재현기간(년)"],
+  ["estimated_return_period_label", "재현기간 구간"],
+  ["actual_return_period_label", "실제 재현기간"],
+  ["actual_return_period_year", "실제 재현기간(년)"],
   ["frequency_band", "빈도구간"],
   ["lower_return_period_year", "하한 재현기간(년)"],
   ["lower_rainfall_mm", "하한 확률강우량(mm)"],
@@ -130,6 +131,78 @@ function parseYear(label, fallback) {
   if (Number.isFinite(direct)) return direct;
   const match = String(label || "").match(/\d+(?:\.\d+)?/);
   return match ? Number(match[0]) : 0;
+}
+
+function numericOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function yearText(year) {
+  const num = Number(year);
+  if (!Number.isFinite(num)) return "";
+  return Number.isInteger(num) ? String(num) : number(num, 1);
+}
+
+function returnPeriodRangeLabel(row) {
+  const lower = numericOrNull(row.lower_return_period_year);
+  const upper = numericOrNull(row.upper_return_period_year);
+  if (lower !== null && upper !== null) {
+    return lower === upper ? `${yearText(lower)}년` : `${yearText(lower)}년 ~ ${yearText(upper)}년`;
+  }
+  if (lower === null && upper !== null) return `${yearText(upper)}년 이하`;
+  if (lower !== null && upper === null) return `${yearText(lower)}년 초과`;
+  return row.estimated_return_period_label || "기준 없음";
+}
+
+function interpolatedReturnPeriod(row) {
+  const lowerYear = numericOrNull(row.lower_return_period_year);
+  const upperYear = numericOrNull(row.upper_return_period_year);
+  const lowerRain = numericOrNull(row.lower_rainfall_mm);
+  const upperRain = numericOrNull(row.upper_rainfall_mm);
+  const observed = numericOrNull(row.max_rainfall_mm);
+  if (lowerYear !== null && upperYear !== null && lowerYear === upperYear) return lowerYear;
+  if (
+    lowerYear !== null && upperYear !== null
+    && lowerRain !== null && upperRain !== null && observed !== null
+    && upperRain !== lowerRain
+  ) {
+    const fraction = Math.max(0, Math.min(1, (observed - lowerRain) / (upperRain - lowerRain)));
+    if (lowerYear > 0 && upperYear > 0) {
+      return Math.exp(Math.log(lowerYear) + fraction * (Math.log(upperYear) - Math.log(lowerYear)));
+    }
+    return lowerYear + fraction * (upperYear - lowerYear);
+  }
+  if (lowerYear === null && upperYear !== null) return upperYear;
+  if (lowerYear !== null && upperYear === null) return lowerYear;
+  return numericOrNull(row.estimated_return_period_year);
+}
+
+function actualReturnPeriodLabel(row, actual) {
+  const lower = numericOrNull(row.lower_return_period_year);
+  const upper = numericOrNull(row.upper_return_period_year);
+  if (!Number.isFinite(actual)) return "-";
+  const label = new Intl.NumberFormat("ko-KR", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1
+  }).format(actual);
+  if (lower === null && upper !== null) return `${label}년 이하`;
+  if (lower !== null && upper === null) return `${label}년 초과`;
+  return `${label}년`;
+}
+
+function enrichReturnPeriod(row) {
+  const rangeLabel = returnPeriodRangeLabel(row);
+  const actual = interpolatedReturnPeriod(row);
+  return {
+    ...row,
+    estimated_return_period_label: rangeLabel,
+    estimated_return_period_year: Number.isFinite(actual) ? Math.round(actual * 10) / 10 : "",
+    actual_return_period_year: Number.isFinite(actual) ? Math.round(actual * 10) / 10 : "",
+    actual_return_period_label: actualReturnPeriodLabel(row, actual),
+    frequency_band: row.frequency_band || rangeLabel
+  };
 }
 
 function severityClass(yearOrLabel, fallback) {
@@ -387,22 +460,22 @@ function estimateClientFrequency(rows, stationCode, durationMin, observed) {
   }
   const first = matches[0];
   if (observed < Number(first.rainfall_mm)) {
-    return { estimated_return_period_year: Number(first.return_period_year), estimated_return_period_label: `${first.return_period_year}년`, frequency_band: `${first.return_period_year}년 이하`, lower_return_period_year: null, upper_return_period_year: Number(first.return_period_year), lower_rainfall_mm: null, upper_rainfall_mm: Number(first.rainfall_mm) };
+    return enrichReturnPeriod({ estimated_return_period_year: Number(first.return_period_year), estimated_return_period_label: `${first.return_period_year}년 이하`, frequency_band: `${first.return_period_year}년 이하`, max_rainfall_mm: observed, lower_return_period_year: null, upper_return_period_year: Number(first.return_period_year), lower_rainfall_mm: null, upper_rainfall_mm: Number(first.rainfall_mm) });
   }
   for (const row of matches) {
     if (Math.abs(observed - Number(row.rainfall_mm)) <= 1e-9) {
-      return { estimated_return_period_year: Number(row.return_period_year), estimated_return_period_label: `${row.return_period_year}년`, frequency_band: `${row.return_period_year}년 수준`, lower_return_period_year: Number(row.return_period_year), upper_return_period_year: Number(row.return_period_year), lower_rainfall_mm: Number(row.rainfall_mm), upper_rainfall_mm: Number(row.rainfall_mm) };
+      return enrichReturnPeriod({ estimated_return_period_year: Number(row.return_period_year), estimated_return_period_label: `${row.return_period_year}년`, frequency_band: `${row.return_period_year}년 수준`, max_rainfall_mm: observed, lower_return_period_year: Number(row.return_period_year), upper_return_period_year: Number(row.return_period_year), lower_rainfall_mm: Number(row.rainfall_mm), upper_rainfall_mm: Number(row.rainfall_mm) });
     }
   }
   for (let i = 0; i < matches.length - 1; i += 1) {
     const lower = matches[i];
     const upper = matches[i + 1];
     if (Number(lower.rainfall_mm) < observed && observed < Number(upper.rainfall_mm)) {
-      return { estimated_return_period_year: Number(upper.return_period_year), estimated_return_period_label: `${upper.return_period_year}년`, frequency_band: `${lower.return_period_year}년 초과 ~ ${upper.return_period_year}년 이하`, lower_return_period_year: Number(lower.return_period_year), upper_return_period_year: Number(upper.return_period_year), lower_rainfall_mm: Number(lower.rainfall_mm), upper_rainfall_mm: Number(upper.rainfall_mm) };
+      return enrichReturnPeriod({ estimated_return_period_year: Number(upper.return_period_year), estimated_return_period_label: `${lower.return_period_year}년 ~ ${upper.return_period_year}년`, frequency_band: `${lower.return_period_year}년 ~ ${upper.return_period_year}년`, max_rainfall_mm: observed, lower_return_period_year: Number(lower.return_period_year), upper_return_period_year: Number(upper.return_period_year), lower_rainfall_mm: Number(lower.rainfall_mm), upper_rainfall_mm: Number(upper.rainfall_mm) });
     }
   }
   const last = matches[matches.length - 1];
-  return { estimated_return_period_year: null, estimated_return_period_label: `${last.return_period_year}년 초과`, frequency_band: `${last.return_period_year}년 초과`, lower_return_period_year: Number(last.return_period_year), upper_return_period_year: null, lower_rainfall_mm: Number(last.rainfall_mm), upper_rainfall_mm: null };
+  return enrichReturnPeriod({ estimated_return_period_year: null, estimated_return_period_label: `${last.return_period_year}년 초과`, frequency_band: `${last.return_period_year}년 초과`, max_rainfall_mm: observed, lower_return_period_year: Number(last.return_period_year), upper_return_period_year: null, lower_rainfall_mm: Number(last.rainfall_mm), upper_rainfall_mm: null });
 }
 
 function normalizeAgencyName(value) {
@@ -429,7 +502,7 @@ function providerForRow(row) {
 }
 
 function withRowProviders(rows) {
-  return rows.map((row) => ({
+  return rows.map((row) => enrichReturnPeriod({
     ...row,
     observation_source: providerForRow(row)
   }));
@@ -1219,7 +1292,7 @@ function compareResultTableRows(a, b) {
 
 function renderTable() {
   if (!state.results.length) {
-    els.rows.innerHTML = `<tr><td colspan="10">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
+    els.rows.innerHTML = `<tr><td colspan="11">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
     return;
   }
   els.rows.innerHTML = state.results
@@ -1239,6 +1312,7 @@ function renderTable() {
           <td>${escapeHtml(row.end_time || "")}</td>
           <td>${row.design_rainfall_mm === "" ? "-" : `${number(row.design_rainfall_mm)}mm`}</td>
           <td><span class="frequency-chip ${severity}">${escapeHtml(row.estimated_return_period_label || "-")}</span></td>
+          <td><span class="frequency-chip ${severity}">${escapeHtml(row.actual_return_period_label || "-")}</span></td>
         </tr>
       `;
     }).join("");
