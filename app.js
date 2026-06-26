@@ -168,6 +168,217 @@ function clearResultsAfterInputChange() {
   clearAnalysisResults("입력 조건이 바뀌었습니다. 현재 조건으로 분석 실행을 다시 눌러주세요.");
 }
 
+function shouldUseClientChunkedKma(body) {
+  if (normalizeAgencyName(body.agency) !== "기상청") return false;
+  const start = parseAppDate(body.start_time);
+  const end = parseAppDate(body.end_time);
+  return (end.getTime() - start.getTime()) > 14 * 24 * 60 * 60 * 1000;
+}
+
+async function runClientChunkedKmaAnalysis(body, requestKey, durations) {
+  ensureRealtimeApi();
+  if (!state.designRows.length) {
+    await loadDesignRows();
+  }
+  const start = parseAppDate(body.start_time);
+  const end = parseAppDate(body.end_time);
+  const chunks = dateChunks(start, end, 7);
+  const rawByTime = new Map();
+  let completed = 0;
+  let nonzeroCount = 0;
+  let totalRainfall = 0;
+
+  await mapLimit(chunks, 3, async ([chunkStart, chunkEnd]) => {
+    const payload = {
+      ...body,
+      start_time: formatAppDate(chunkStart),
+      end_time: formatAppDate(chunkEnd),
+      format: "json"
+    };
+    const data = await fetchJson("/api/rainfall/raw", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    for (const record of data.records || []) {
+      const timestamp = String(record.timestamp || "");
+      if (!timestamp) continue;
+      rawByTime.set(timestamp, Number(record.rainfall_mm || 0));
+    }
+    completed += 1;
+    setProgress(Math.round((completed * 1000) / chunks.length) / 10, `${completed}/${chunks.length}`);
+    els.status.textContent = `긴 기간 기상청 원자료를 나눠 가져오는 중입니다. ${completed}/${chunks.length}`;
+  });
+
+  const rawRecords = regularizeClientRecords(rawByTime, start, end, 10);
+  for (const record of rawRecords) {
+    const rainfall = Number(record.rainfall_mm || 0);
+    totalRainfall += rainfall;
+    if (rainfall > 0) nonzeroCount += 1;
+  }
+  const maxima = calculateClientDurationMaxima(rawRecords, durations);
+  const results = maxima.map((maximum) => {
+    const estimate = estimateClientFrequency(state.designRows, body.design_station_code, maximum.duration_min, maximum.max_rainfall_mm);
+    return {
+      region: body.design_station_code,
+      station_id: body.station_id,
+      station_name: body.station_name,
+      observation_source: "기상청",
+      duration_min: maximum.duration_min,
+      duration_label: durationKorean(maximum.duration_min),
+      max_rainfall_mm: maximum.max_rainfall_mm,
+      intensity_mm_per_hr: maximum.intensity_mm_per_hr,
+      start_time: maximum.start_time,
+      end_time: maximum.end_time,
+      estimated_return_period_label: estimate.estimated_return_period_label,
+      estimated_return_period_year: estimate.estimated_return_period_year ?? "",
+      frequency_band: estimate.frequency_band,
+      lower_return_period_year: estimate.lower_return_period_year || "",
+      lower_rainfall_mm: estimate.lower_rainfall_mm ?? "",
+      upper_return_period_year: estimate.upper_return_period_year || "",
+      upper_rainfall_mm: estimate.upper_rainfall_mm ?? "",
+      design_station_code: body.design_station_code,
+      design_rainfall_mm: estimate.upper_rainfall_mm ?? estimate.lower_rainfall_mm ?? ""
+    };
+  });
+
+  state.results = withRowProviders(results);
+  state.rawRecords = rawRecords;
+  state.lastAnalysis = {
+    ok: true,
+    analysis_scope: "station",
+    station_count: 1,
+    station_id: body.station_id,
+    station_name: body.station_name,
+    design_station_code: body.design_station_code,
+    source_provider: "기상청",
+    db_source: "rain_2022.db.rain_2022",
+    raw_record_count: rawRecords.length,
+    nonzero_count: nonzeroCount,
+    total_rainfall_mm: Math.round(totalRainfall * 1000) / 1000,
+    results
+  };
+  state.lastAnalysisKey = requestKey;
+  els.status.textContent = `분석 완료: 원자료 ${number(rawRecords.length, 0)}건, 결과 ${state.results.length}건.`;
+  renderAll();
+  revealResults();
+}
+
+function parseAppDate(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (!match) throw new Error(`날짜를 해석할 수 없습니다: ${value}`);
+  return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]), Number(match[5]), 0, 0));
+}
+
+function formatAppDate(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, "0");
+}
+
+function dateChunks(start, end, days) {
+  const chunks = [];
+  let current = new Date(start.getTime());
+  const step = days * 24 * 60 * 60 * 1000;
+  while (current.getTime() < end.getTime()) {
+    const chunkEnd = new Date(Math.min(end.getTime(), current.getTime() + step));
+    chunks.push([new Date(current.getTime()), chunkEnd]);
+    current = chunkEnd;
+  }
+  return chunks;
+}
+
+async function mapLimit(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(Math.max(limit, 1), items.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await worker(items[currentIndex], currentIndex);
+    }
+  }));
+  return results;
+}
+
+function regularizeClientRecords(rawByTime, start, end, intervalMin) {
+  const records = [];
+  let current = ceilClientDate(start, intervalMin);
+  while (current.getTime() <= end.getTime()) {
+    const timestamp = formatAppDate(current);
+    records.push({ timestamp, rainfall_mm: Math.round(Number(rawByTime.get(timestamp) || 0) * 1000) / 1000 });
+    current = new Date(current.getTime() + intervalMin * 60000);
+  }
+  return records;
+}
+
+function ceilClientDate(date, intervalMin) {
+  const minuteOfDay = date.getUTCHours() * 60 + date.getUTCMinutes();
+  const rounded = Math.ceil(minuteOfDay / intervalMin) * intervalMin;
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, rounded, 0, 0));
+}
+
+function calculateClientDurationMaxima(records, durations) {
+  const intervalMin = 10;
+  const prefix = [0];
+  for (const record of records) prefix.push(prefix[prefix.length - 1] + Number(record.rainfall_mm || 0));
+  return durations.map((durationMin) => {
+    const windowSize = durationMin / intervalMin;
+    let bestSum = -1;
+    let bestStart = 0;
+    let bestEnd = Math.max(0, windowSize - 1);
+    for (let endIndex = windowSize - 1; endIndex < records.length; endIndex += 1) {
+      const startIndex = endIndex + 1 - windowSize;
+      const total = prefix[endIndex + 1] - prefix[startIndex];
+      if (total > bestSum) {
+        bestSum = total;
+        bestStart = startIndex;
+        bestEnd = endIndex;
+      }
+    }
+    return {
+      duration_min: durationMin,
+      max_rainfall_mm: Math.round(bestSum * 1000) / 1000,
+      intensity_mm_per_hr: Math.round(bestSum * 60 / durationMin * 1000) / 1000,
+      start_time: records[bestStart]?.timestamp || "",
+      end_time: records[bestEnd]?.timestamp || ""
+    };
+  });
+}
+
+function estimateClientFrequency(rows, stationCode, durationMin, observed) {
+  const matches = rows
+    .filter((row) => {
+      const code = String(row.station_id || row.station_code || row.design_station_code || stationCode);
+      return code === String(stationCode) && Number(row.duration_min) === Number(durationMin);
+    })
+    .sort((a, b) => Number(a.return_period_year) - Number(b.return_period_year));
+  if (!matches.length) {
+    return { estimated_return_period_year: null, estimated_return_period_label: "기준 없음", frequency_band: "해당 지점 지속시간 기준표가 없습니다.", lower_return_period_year: null, upper_return_period_year: null, lower_rainfall_mm: null, upper_rainfall_mm: null };
+  }
+  const first = matches[0];
+  if (observed < Number(first.rainfall_mm)) {
+    return { estimated_return_period_year: Number(first.return_period_year), estimated_return_period_label: `${first.return_period_year}년`, frequency_band: `${first.return_period_year}년 이하`, lower_return_period_year: null, upper_return_period_year: Number(first.return_period_year), lower_rainfall_mm: null, upper_rainfall_mm: Number(first.rainfall_mm) };
+  }
+  for (const row of matches) {
+    if (Math.abs(observed - Number(row.rainfall_mm)) <= 1e-9) {
+      return { estimated_return_period_year: Number(row.return_period_year), estimated_return_period_label: `${row.return_period_year}년`, frequency_band: `${row.return_period_year}년 수준`, lower_return_period_year: Number(row.return_period_year), upper_return_period_year: Number(row.return_period_year), lower_rainfall_mm: Number(row.rainfall_mm), upper_rainfall_mm: Number(row.rainfall_mm) };
+    }
+  }
+  for (let i = 0; i < matches.length - 1; i += 1) {
+    const lower = matches[i];
+    const upper = matches[i + 1];
+    if (Number(lower.rainfall_mm) < observed && observed < Number(upper.rainfall_mm)) {
+      return { estimated_return_period_year: Number(upper.return_period_year), estimated_return_period_label: `${upper.return_period_year}년`, frequency_band: `${lower.return_period_year}년 초과 ~ ${upper.return_period_year}년 이하`, lower_return_period_year: Number(lower.return_period_year), upper_return_period_year: Number(upper.return_period_year), lower_rainfall_mm: Number(lower.rainfall_mm), upper_rainfall_mm: Number(upper.rainfall_mm) };
+    }
+  }
+  const last = matches[matches.length - 1];
+  return { estimated_return_period_year: null, estimated_return_period_label: `${last.return_period_year}년 초과`, frequency_band: `${last.return_period_year}년 초과`, lower_return_period_year: Number(last.return_period_year), upper_return_period_year: null, lower_rainfall_mm: Number(last.rainfall_mm), upper_rainfall_mm: null };
+}
+
 function normalizeAgencyName(value) {
   const text = String(value || "").trim();
   if (["수공", "한국수자원공사", "수자원공사"].includes(text)) return "수자원공사";
@@ -522,6 +733,17 @@ async function runAnalysis() {
   const requestKey = analysisKeyFromControls();
 
   clearAnalysisResults();
+  if (shouldUseClientChunkedKma(body)) {
+    beginLoading("긴 기간 기상청 원자료를 나눠 가져와 전체 이동합을 계산하는 중입니다.");
+    try {
+      await runClientChunkedKmaAnalysis(body, requestKey, durations);
+    } catch (error) {
+      els.status.textContent = error.message;
+    } finally {
+      endLoading();
+    }
+    return;
+  }
   beginLoading("관측 10분 원자료를 가져와 이동합을 계산하는 중입니다.");
   try {
     ensureRealtimeApi();
