@@ -657,6 +657,7 @@ function durationLabelKo(durationMin) {
 
 function populateSelects() {
   populateBasinSelect();
+  alignModeWithBasinSelection();
   populateStationSelect();
   populateDesignSelect();
   if (els.stationId.value) {
@@ -735,6 +736,12 @@ function isBasinMode() {
   return els.analysisMode.value === "basin";
 }
 
+function alignModeWithBasinSelection() {
+  if (els.basin.value && els.analysisMode.value !== "basin") {
+    els.analysisMode.value = "basin";
+  }
+}
+
 function updateAnalysisMode() {
   const basinMode = isBasinMode();
   els.stationSearch.disabled = false;
@@ -797,6 +804,8 @@ async function loadDesignRows() {
 
 async function runAnalysis() {
   const durations = [...state.selectedDurations].sort((a, b) => a - b);
+  alignModeWithBasinSelection();
+  updateAnalysisMode();
   if (isBasinMode()) {
     await runBasinAnalysis(durations);
     return;
@@ -1610,15 +1619,17 @@ els.stationSearch.addEventListener("input", () => {
 
 els.analysisMode.addEventListener("change", () => {
   clearResultsAfterInputChange();
+  if (els.analysisMode.value === "station" && els.basin.value) {
+    els.basin.value = "";
+    populateStationSelect();
+  }
   updateAnalysisMode();
   loadDesignRows();
 });
 
 els.basin.addEventListener("change", () => {
   clearResultsAfterInputChange();
-  if (els.basin.value) {
-    els.analysisMode.value = "basin";
-  }
+  alignModeWithBasinSelection();
   const current = els.stationSelect.value;
   populateStationSelect();
   if ([...els.stationSelect.options].some((option) => option.value === current)) {
