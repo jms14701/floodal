@@ -1063,11 +1063,25 @@ function setProgress(value, label = "") {
 }
 
 function renderAll() {
-  renderSourceProvider();
-  renderSummary();
-  renderBars();
-  renderIdf();
-  renderTable();
+  const errors = [];
+  renderSafely(renderTable, errors);
+  renderSafely(renderSourceProvider, errors);
+  renderSafely(renderSummary, errors);
+  renderSafely(renderBars, errors);
+  renderSafely(renderIdf, errors);
+  if (errors.length && state.results.length) {
+    console.error("Floodal render errors", errors);
+    els.status.textContent = `${els.status.textContent} 표는 표시됐고, 일부 그래프 업데이트만 실패했습니다.`;
+  }
+}
+
+function renderSafely(renderFn, errors) {
+  try {
+    renderFn();
+  } catch (error) {
+    errors.push(error);
+    console.error(error);
+  }
 }
 
 function revealResults() {
