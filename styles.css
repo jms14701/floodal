@@ -270,6 +270,20 @@ input:focus, select:focus, button:focus-visible {
   line-height: 1.45;
 }
 
+.empty-analysis {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.empty-analysis p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 .progress-wrap {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
