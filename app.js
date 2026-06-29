@@ -424,8 +424,9 @@ function calculateClientDurationMaxima(records, durations) {
   const intervalMin = 10;
   const prefix = [0];
   for (const record of records) prefix.push(prefix[prefix.length - 1] + Number(record.rainfall_mm || 0));
-  return durations.map((durationMin) => {
+  const maxima = durations.flatMap((durationMin) => {
     const windowSize = durationMin / intervalMin;
+    if (records.length < windowSize) return [];
     let bestSum = -1;
     let bestStart = 0;
     let bestEnd = Math.max(0, windowSize - 1);
@@ -438,14 +439,16 @@ function calculateClientDurationMaxima(records, durations) {
         bestEnd = endIndex;
       }
     }
-    return {
+    return [{
       duration_min: durationMin,
       max_rainfall_mm: Math.round(bestSum * 1000) / 1000,
       intensity_mm_per_hr: Math.round(bestSum * 60 / durationMin * 1000) / 1000,
       start_time: records[bestStart]?.timestamp || "",
       end_time: records[bestEnd]?.timestamp || ""
-    };
+    }];
   });
+  if (!maxima.length) throw new Error("선택한 지속시간을 계산할 만큼 관측자료 기간이 충분하지 않습니다. 기간을 늘리거나 짧은 지속시간을 선택하세요.");
+  return maxima;
 }
 
 function estimateClientFrequency(rows, stationCode, durationMin, observed) {
@@ -1155,7 +1158,7 @@ function animateNumber(el, target, suffix = "", digits = 1) {
 
 function renderBars() {
   if (!state.results.length) {
-    els.barChart.innerHTML = emptyAnalysisPrompt("선택한 조건으로 분석을 실행하면 지속시간별 최대강우량이 표시됩니다.");
+    els.barChart.innerHTML = `<p class="status-text">분석 실행 후 지속시간별 최대강우량이 표시됩니다.</p>`;
     return;
   }
   const chartRows = peakRowsByDuration(state.results);
@@ -1294,15 +1297,6 @@ function emptySvgText(message) {
   return `<text x="380" y="180" text-anchor="middle" fill="#64748b" font-size="15" font-weight="800">${escapeHtml(message)}</text>`;
 }
 
-function emptyAnalysisPrompt(message) {
-  return `
-    <div class="empty-analysis">
-      <p>${escapeHtml(message)}</p>
-      <button class="secondary-button" type="button" data-run-analysis>분석 실행</button>
-    </div>
-  `;
-}
-
 function compareResultTableRows(a, b) {
   const stationA = String(a.station_id || a.station_name || a.design_station_code || "");
   const stationB = String(b.station_id || b.station_name || b.design_station_code || "");
@@ -1315,7 +1309,7 @@ function compareResultTableRows(a, b) {
 
 function renderTable() {
   if (!state.results.length) {
-    els.rows.innerHTML = `<tr><td colspan="11">${emptyAnalysisPrompt("선택한 조건으로 분석을 실행하면 결과가 표시됩니다.")}</td></tr>`;
+    els.rows.innerHTML = `<tr><td colspan="11">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
     return;
   }
   els.rows.innerHTML = state.results
@@ -1679,10 +1673,6 @@ document.querySelectorAll("[data-idf-mode]").forEach((button) => {
 });
 
 els.runButton.addEventListener("click", runAnalysis);
-document.addEventListener("click", (event) => {
-  if (!event.target.closest("[data-run-analysis]")) return;
-  runAnalysis();
-});
 els.rawButton.addEventListener("click", downloadRawCsv);
 els.downloadButtons.forEach((link) => {
   link.addEventListener("click", (event) => downloadAnalysisResults(link.dataset.downloadFormat || "csv", event));
