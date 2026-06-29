@@ -21,24 +21,14 @@ const DESIGN_SOURCE_LABEL = "홍수량 산정지침_2022";
 const RESULT_DOWNLOAD_COLUMNS = [
   ["station_name", "관측소"],
   ["station_id", "관측소 코드"],
-  ["design_station_code", "기준 지점코드"],
-  ["region", "지역/기준 코드"],
-  ["observation_source", "원자료 제공 기관"],
-  ["duration_min", "지속시간(분)"],
   ["duration_label", "지속시간"],
   ["max_rainfall_mm", "최대강우량(mm)"],
   ["intensity_mm_per_hr", "강우강도(mm/hr)"],
   ["start_time", "발생 시작시각"],
   ["end_time", "발생 종료시각"],
-  ["design_rainfall_mm", "기준 확률강우량(mm)"],
   ["estimated_return_period_label", "재현기간 구간"],
   ["actual_return_period_label", "실제 재현기간"],
-  ["actual_return_period_year", "실제 재현기간(년)"],
-  ["frequency_band", "빈도구간"],
-  ["lower_return_period_year", "하한 재현기간(년)"],
-  ["lower_rainfall_mm", "하한 확률강우량(mm)"],
-  ["upper_return_period_year", "상한 재현기간(년)"],
-  ["upper_rainfall_mm", "상한 확률강우량(mm)"]
+  ["actual_probability_rainfall_mm", "실제 확률강우량(mm)"]
 ];
 
 const state = {
@@ -195,12 +185,14 @@ function actualReturnPeriodLabel(row, actual) {
 function enrichReturnPeriod(row) {
   const rangeLabel = returnPeriodRangeLabel(row);
   const actual = interpolatedReturnPeriod(row);
+  const actualRainfall = numericOrNull(row.max_rainfall_mm);
   return {
     ...row,
     estimated_return_period_label: rangeLabel,
     estimated_return_period_year: Number.isFinite(actual) ? Math.round(actual * 10) / 10 : "",
     actual_return_period_year: Number.isFinite(actual) ? Math.round(actual * 10) / 10 : "",
     actual_return_period_label: actualReturnPeriodLabel(row, actual),
+    actual_probability_rainfall_mm: actualRainfall ?? "",
     frequency_band: row.frequency_band || rangeLabel
   };
 }
@@ -1309,7 +1301,7 @@ function compareResultTableRows(a, b) {
 
 function renderTable() {
   if (!state.results.length) {
-    els.rows.innerHTML = `<tr><td colspan="11">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
+    els.rows.innerHTML = `<tr><td colspan="10">분석을 실행하면 결과가 표시됩니다.</td></tr>`;
     return;
   }
   els.rows.innerHTML = state.results
@@ -1321,15 +1313,14 @@ function renderTable() {
         <tr>
           <td>${escapeHtml(row.station_name || "")}</td>
           <td>${escapeHtml(row.station_id || "")}</td>
-          <td>${escapeHtml(row.design_station_code || row.region || "")}</td>
           <td>${durationKorean(row.duration_min)}</td>
           <td>${number(row.max_rainfall_mm)}mm</td>
           <td>${number(row.intensity_mm_per_hr)}mm/hr</td>
           <td>${escapeHtml(row.start_time || "")}</td>
           <td>${escapeHtml(row.end_time || "")}</td>
-          <td>${row.design_rainfall_mm === "" ? "-" : `${number(row.design_rainfall_mm)}mm`}</td>
           <td><span class="frequency-chip ${severity}">${escapeHtml(row.estimated_return_period_label || "-")}</span></td>
           <td><span class="frequency-chip ${severity}">${escapeHtml(row.actual_return_period_label || "-")}</span></td>
+          <td>${row.actual_probability_rainfall_mm === "" ? "-" : `${number(row.actual_probability_rainfall_mm)}mm`}</td>
         </tr>
       `;
     }).join("");
@@ -1365,6 +1356,7 @@ function downloadCellValue(row, key) {
   if (key === "observation_source") return providerForRow(row);
   if (key === "duration_label") return row.duration_label || durationKorean(row.duration_min);
   if (key === "design_rainfall_mm") return row.design_rainfall_mm ?? "";
+  if (key === "actual_probability_rainfall_mm") return row.actual_probability_rainfall_mm ?? row.max_rainfall_mm ?? "";
   return row[key] ?? "";
 }
 
