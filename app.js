@@ -4,6 +4,7 @@ const DEFAULT_PUBLIC_API_BASE = atob("aHR0cHM6Ly9xbWN4d3FsY3F6ZWFzdXpsaWpyai5mdW
 const API_BASE = IS_LOCAL_API_HOST
   ? ""
   : String(window.FLOODAL_API_BASE || DEFAULT_PUBLIC_API_BASE).replace(/\/+$/, "");
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 const DURATION_LABELS = {
   60: "1H",
@@ -375,6 +376,26 @@ function parseAppDate(value) {
 
 function formatAppDate(date) {
   return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())} ${pad2(date.getUTCHours())}:${pad2(date.getUTCMinutes())}`;
+}
+
+function clampAnalysisEndToCurrentTime() {
+  const start = parseAppDate(fromDateTimeLocal(els.start.value));
+  const requestedEnd = parseAppDate(fromDateTimeLocal(els.end.value));
+  const currentKst = new Date(Date.now() + KST_OFFSET_MS);
+  currentKst.setUTCSeconds(0, 0);
+
+  if (start.getTime() >= currentKst.getTime()) {
+    els.status.textContent = "시작시각은 현재시각보다 이전이어야 합니다.";
+    return false;
+  }
+  if (requestedEnd.getTime() <= start.getTime()) {
+    els.status.textContent = "종료시각은 시작시각보다 뒤여야 합니다.";
+    return false;
+  }
+  if (requestedEnd.getTime() > currentKst.getTime()) {
+    els.end.value = toDateTimeLocal(formatAppDate(currentKst));
+  }
+  return true;
 }
 
 function pad2(value) {
@@ -810,6 +831,7 @@ async function loadDesignRows() {
 async function runAnalysis() {
   const durations = [...state.selectedDurations].sort((a, b) => a - b);
   updateAnalysisMode();
+  if (!clampAnalysisEndToCurrentTime()) return;
   if (isBasinMode()) {
     await runBasinAnalysis(durations);
     return;
